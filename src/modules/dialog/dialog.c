@@ -103,6 +103,7 @@ static char* profiles_nv_s = NULL;
 str dlg_extra_hdrs = {NULL,0};
 static int db_fetch_rows = 200;
 static int db_skip_load = 0;
+static int dlg_keep_proxy_rr = 0;
 int initial_cbs_inscript = 1;
 int dlg_wait_ack = 1;
 static int dlg_timer_procs = 0;
@@ -322,6 +323,7 @@ static param_export_t mod_params[]={
 	{ "end_timeout",           PARAM_INT, &dlg_end_timeout          },
 	{ "h_id_start",            PARAM_INT, &dlg_h_id_start           },
 	{ "h_id_step",             PARAM_INT, &dlg_h_id_step            },
+	{ "keep_proxy_rr",         INT_PARAM, &dlg_keep_proxy_rr        },
 	{ 0,0,0 }
 };
 
@@ -528,6 +530,11 @@ static int mod_init(void)
 		return -1;
 	}
 
+	if (dlg_keep_proxy_rr < 0 || dlg_keep_proxy_rr > 3) {
+		LM_ERR("invalid value for keep_proxy_rr\n");
+		return -1;
+	}
+
 	if (timeout_spec.s) {
 		if ( pv_parse_spec(&timeout_spec, &timeout_avp)==0
 				&& (timeout_avp.type!=PVT_AVP)){
@@ -655,7 +662,7 @@ static int mod_init(void)
 
 	/* init handlers */
 	init_dlg_handlers( rr_param, dlg_flag,
-		timeout_spec.s?&timeout_avp:0, default_timeout, seq_match_mode);
+		timeout_spec.s?&timeout_avp:0, default_timeout, seq_match_mode, dlg_keep_proxy_rr);
 
 	/* init timer */
 	if (init_dlg_timer(dlg_ontimeout)!=0) {
@@ -707,7 +714,6 @@ static int mod_init(void)
 		}
 	}
 
-	destroy_dlg_callbacks( DLGCB_LOADED );
 
 	/* timer process to send keep alive requests */
 	if(dlg_ka_timer>0 && dlg_ka_interval>0)
@@ -1202,6 +1208,14 @@ static int w_dlg_bridge(struct sip_msg *msg, char *from, char *to, char *op)
 	if(dlg_bridge(&sf, &st, &so, NULL)!=0)
 		return -1;
 	return 1;
+}
+
+static int ki_dlg_bridge(sip_msg_t *msg, str *sfrom, str *sto, str *soproxy)
+{
+	if(dlg_bridge(sfrom, sto, soproxy, NULL)!=0)
+		return -1;
+	return 1;
+
 }
 
 /**
@@ -1857,6 +1871,111 @@ static int w_dlg_db_load_extra(sip_msg_t *msg, char *p1, char *p2)
 /**
  *
  */
+static int ki_dlg_var_sets(sip_msg_t *msg, str *name, str *val)
+{
+	dlg_cell_t *dlg;
+	int ret;
+
+	dlg = dlg_get_msg_dialog(msg);
+	ret = set_dlg_variable_unsafe(dlg, name, val);
+	if(dlg) {
+		dlg_release(dlg);
+	}
+
+	return (ret==0)?1:ret;
+}
+
+/**
+ *
+ */
+static sr_kemi_xval_t _sr_kemi_dialog_xval = {0};
+
+/**
+ *
+ */
+static sr_kemi_xval_t* ki_dlg_var_get_mode(sip_msg_t *msg, str *name, int rmode)
+{
+	dlg_cell_t *dlg;
+	str *pval;
+
+	memset(&_sr_kemi_dialog_xval, 0, sizeof(sr_kemi_xval_t));
+
+	dlg = dlg_get_msg_dialog(msg);
+	if(dlg==NULL) {
+		sr_kemi_xval_null(&_sr_kemi_dialog_xval, rmode);
+		return &_sr_kemi_dialog_xval;
+	}
+	pval = get_dlg_variable(dlg, name);
+	if(pval==NULL || pval->s==NULL) {
+		sr_kemi_xval_null(&_sr_kemi_dialog_xval, rmode);
+		goto done;
+	}
+
+	_sr_kemi_dialog_xval.vtype = SR_KEMIP_STR;
+	_sr_kemi_dialog_xval.v.s = *pval;
+
+done:
+	dlg_release(dlg);
+	return &_sr_kemi_dialog_xval;
+}
+
+/**
+ *
+ */
+static sr_kemi_xval_t* ki_dlg_var_get(sip_msg_t *msg, str *name)
+{
+	return ki_dlg_var_get_mode(msg, name, SR_KEMI_XVAL_NULL_NONE);
+}
+
+/**
+ *
+ */
+static sr_kemi_xval_t* ki_dlg_var_gete(sip_msg_t *msg, str *name)
+{
+	return ki_dlg_var_get_mode(msg, name, SR_KEMI_XVAL_NULL_EMPTY);
+}
+/**
+ *
+ */
+static sr_kemi_xval_t* ki_dlg_var_getw(sip_msg_t *msg, str *name)
+{
+	return ki_dlg_var_get_mode(msg, name, SR_KEMI_XVAL_NULL_PRINT);
+}
+
+/**
+ *
+ */
+static int ki_dlg_var_rm(sip_msg_t *msg, str *name)
+{
+	dlg_cell_t *dlg;
+
+	dlg = dlg_get_msg_dialog(msg);
+	set_dlg_variable_unsafe(dlg, name, NULL);
+	return 1;
+}
+
+/**
+ *
+ */
+static int ki_dlg_var_is_null(sip_msg_t *msg, str *name)
+{
+	dlg_cell_t *dlg;
+	str *pval;
+
+	dlg = dlg_get_msg_dialog(msg);
+	if(dlg==NULL) {
+		return 1;
+	}
+	pval = get_dlg_variable(dlg, name);
+	if(pval==NULL || pval->s==NULL) {
+		return 1;
+	}
+	return -1;
+}
+
+/**
+ *
+ */
 /* clang-format off */
 static sr_kemi_t sr_kemi_dialog_exports[] = {
 	{ str_init("dialog"), str_init("dlg_manage"),
@@ -1957,6 +2076,41 @@ static sr_kemi_t sr_kemi_dialog_exports[] = {
 	{ str_init("dialog"), str_init("dlg_db_load_extra"),
 		SR_KEMIP_INT, ki_dlg_db_load_extra,
 		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("var_sets"),
+		SR_KEMIP_INT, ki_dlg_var_sets,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("var_get"),
+		SR_KEMIP_XVAL, ki_dlg_var_get,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("var_gete"),
+		SR_KEMIP_XVAL, ki_dlg_var_gete,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("var_getw"),
+		SR_KEMIP_XVAL, ki_dlg_var_getw,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("var_rm"),
+		SR_KEMIP_INT, ki_dlg_var_rm,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("var_is_null"),
+		SR_KEMIP_INT, ki_dlg_var_is_null,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dialog"), str_init("dlg_bridge"),
+		SR_KEMIP_INT, ki_dlg_bridge,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_STR,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
 

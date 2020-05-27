@@ -34,13 +34,15 @@
 #include <ortp/ortp.h>
 #include <ortp/port.h>
 
-struct rms_session_info;
+#include "rtp_media_server.h"
 typedef struct rms_action rms_action_t;
+
 
 typedef struct call_leg_media
 {
 	MSFactory *ms_factory;
 	RtpSession *rtps;
+	RtpProfile *rtp_profile;
 	PayloadType *pt;
 	MSTicker *ms_ticker;
 	MSFilter *ms_encoder;
@@ -58,10 +60,11 @@ typedef struct call_leg_media
 	int local_port;
 	str remote_ip;
 	int remote_port;
-	struct rms_session_info *si;
+	const struct rms_dialog_info *di;
 } call_leg_media_t;
 
 int create_call_leg_media(call_leg_media_t *m);
+int create_session_payload(call_leg_media_t *m);
 
 int rms_media_init();
 void rms_media_destroy();

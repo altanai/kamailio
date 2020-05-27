@@ -1061,17 +1061,20 @@ static int ksr_tls_fix_domain(tls_domain_t* d, tls_domain_t* def)
 		* check server domains for server_name extension and register
 		* callback function
 		*/
-		if ((d->type & TLS_DOMAIN_SRV) && d->server_name.len>0) {
+		if ((d->type & TLS_DOMAIN_SRV)
+				&& (d->server_name.len>0 || (d->type & TLS_DOMAIN_DEF))) {
 			if (!SSL_CTX_set_tlsext_servername_callback(d->ctx[i], tls_server_name_cb)) {
 				LM_ERR("register server_name callback handler for socket "
 					"[%s:%d], server_name='%s' failed for proc %d\n",
-					ip_addr2a(&d->ip), d->port, d->server_name.s, i);
+					ip_addr2a(&d->ip), d->port,
+					(d->server_name.s)?d->server_name.s:"<default>", i);
 				return -1;
 			}
 			if (!SSL_CTX_set_tlsext_servername_arg(d->ctx[i], d)) {
 				LM_ERR("register server_name callback handler data for socket "
 					"[%s:%d], server_name='%s' failed for proc %d\n",
-					ip_addr2a(&d->ip), d->port, d->server_name.s, i);
+					ip_addr2a(&d->ip), d->port,
+					(d->server_name.s)?d->server_name.s:"<default>", i);
 				return -1;
 			}
 		}
@@ -1079,10 +1082,11 @@ static int ksr_tls_fix_domain(tls_domain_t* d, tls_domain_t* def)
 	}
 
 #ifndef OPENSSL_NO_TLSEXT
-	if ((d->type & TLS_DOMAIN_SRV) && d->server_name.len>0) {
+	if ((d->type & TLS_DOMAIN_SRV)
+			&& (d->server_name.len>0 || (d->type & TLS_DOMAIN_DEF))) {
 		LM_NOTICE("registered server_name callback handler for socket "
 			"[%s:%d], server_name='%s' ...\n", ip_addr2a(&d->ip), d->port,
-			d->server_name.s);
+			(d->server_name.s)?d->server_name.s:"<default>");
 	}
 #endif
 
@@ -1180,7 +1184,7 @@ EVP_PKEY* tls_lookup_private_key(SSL_CTX* ctx)
 static int load_engine_private_key(tls_domain_t* d)
 {
 	int idx, ret_pwd, i;
-	EVP_PKEY *pkey;
+	EVP_PKEY *pkey = 0;
 	int procs_no;
 	char ctx_str[64];
 
@@ -1559,7 +1563,7 @@ tls_domain_t* tls_lookup_cfg(tls_domains_cfg_t* cfg, int type,
 				if ((p->server_name_mode==KSR_TLS_SNM_INCDOM
 							|| p->server_name_mode==KSR_TLS_SNM_SUBDOM)
 						&& (p->server_name.len<sname->len)) {
-					dotpos = sname->len - p->server_name.len;
+					dotpos = sname->len - p->server_name.len - 1;
 					if(sname->s[dotpos] == '.'
 							&& strncasecmp(p->server_name.s,
 									sname->s + dotpos + 1,

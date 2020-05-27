@@ -10,29 +10,19 @@ Daniel-Constantin Mierla
 
    <miconda@gmail.com>
 
-Edited by
-
 Carsten Bock
 
    ng-voice GmbH
-
-Edited by
 
 Olle E. Johansson
 
    Edvina AB
 
-Edited by
-
 Alessandro Arrichiello
 
    Hewlett Packard
 
-Edited by
-
 Luis Martin
-
-Edited by
 
 Julien Chavanton
 
@@ -99,6 +89,8 @@ Julien Chavanton
               3.34. event_callback (str)
               3.35. ds_attrs_none (int)
               3.36. ds_db_extra_attrs (str)
+              3.37. ds_load_mode (int)
+              3.38. reload_delta (int)
 
         4. Functions
 
@@ -124,6 +116,7 @@ Julien Chavanton
               5.3. dispatcher.reload
               5.4. dispatcher.ping_active
               5.5. dispatcher.add
+              5.6. dispatcher.remove
 
         6. Installation and Running
 
@@ -181,17 +174,19 @@ Julien Chavanton
    1.36. Set event_callback parameter
    1.37. Set the “ds_attrs_none” parameter
    1.38. Set the “ds_db_extra_attrs” parameter
-   1.39. ds_select_dst usage
-   1.40. configuring load balancing with congestion detection
-   1.41. ds_select_domain usage
-   1.42. ds_select usage
-   1.43. ds_select_routes usage
-   1.44. ds_mark_dst usage
-   1.45. ds_list_exists usage
-   1.46. ds_is_from_list usage
-   1.47. ds_load_unset usage
-   1.48. dispatcher list file
-   1.49. Kamailio config script - sample dispatcher usage
+   1.39. Set the “ds_load_mode” parameter
+   1.40. Set reload_delta parameter
+   1.41. ds_select_dst usage
+   1.42. configuring load balancing with congestion detection
+   1.43. ds_select_domain usage
+   1.44. ds_select usage
+   1.45. ds_select_routes usage
+   1.46. ds_mark_dst usage
+   1.47. ds_list_exists usage
+   1.48. ds_is_from_list usage
+   1.49. ds_load_unset usage
+   1.50. dispatcher list file
+   1.51. Kamailio config script - sample dispatcher usage
 
 Chapter 1. Admin Guide
 
@@ -241,6 +236,8 @@ Chapter 1. Admin Guide
         3.34. event_callback (str)
         3.35. ds_attrs_none (int)
         3.36. ds_db_extra_attrs (str)
+        3.37. ds_load_mode (int)
+        3.38. reload_delta (int)
 
    4. Functions
 
@@ -266,6 +263,7 @@ Chapter 1. Admin Guide
         5.3. dispatcher.reload
         5.4. dispatcher.ping_active
         5.5. dispatcher.add
+        5.6. dispatcher.remove
 
    6. Installation and Running
 
@@ -354,6 +352,8 @@ Chapter 1. Admin Guide
    3.34. event_callback (str)
    3.35. ds_attrs_none (int)
    3.36. ds_db_extra_attrs (str)
+   3.37. ds_load_mode (int)
+   3.38. reload_delta (int)
 
 3.1. list_file (string)
 
@@ -490,8 +490,10 @@ modparam("dispatcher", "force_dst", 1)
    The name of the XAVP which will hold the list with addresses and
    associated properties, in the order they have been selected by the
    chosen algorithm. If use_default is 1, the values of last XAVP
-   correspond to the last address in destination set. The first XAVP is
-   the current selected destination. All the other addresses from the
+   correspond to the last address in destination set. In case of using
+   dispatcher.list file, you have to set the priority field for each
+   destination to ensure a particular order there. The first XAVP is the
+   current selected destination. All the other addresses from the
    destination set will be added in the XAVP list to be able to implement
    serial forking.
 
@@ -515,17 +517,21 @@ Note
      * grp - the set id (group id).
      * uri - the URI address.
      * sock - the socket pointer.
+     * socket - the socket string - it is added only if xavp_dst_mode has
+       bit 2 set (value 2).
      * dstid - the destination unique id (in case of call load
        distribution algorithm).
      * attrs - the attributes - they are added if xavp_dst_mode does not
-       have the bit 1 set.
+       have the bit 1 set (value 1).
 
    Default value is “0” (add all fields).
 
    Example 1.12. Set the “xavp_dst_mode” parameter
- ...
- modparam("dispatcher", "xavp_dst_mode", 1)
- ...
+...
+    modparam("dispatcher", "xavp_dst_mode", 1)
+...
+    modparam("dispatcher", "xavp_dst_mode", 2)
+...
 
 3.13. xavp_ctx (str)
 
@@ -708,7 +714,7 @@ Note
        set to TRYING state. This means that probing will be executed all
        the time, but you can skip some servers with flag 4 in destination
        list file, for example.
-     * Value 2: if set to 2, only gateways in inactive state with probing
+     * Value 2: if set to 2, only gateways in INACTIVE state with PROBING
        mode set are tested.
      * Value 3: If set to 3, any gateway with state PROBING is continually
        probed without modifying/removing the PROBING state. This allows
@@ -918,6 +924,36 @@ end
 modparam("dispatcher", "ds_db_extra_attrs", "socket=socket;pref=prefix")
 ...
 
+3.37. ds_load_mode (int)
+
+   If set to 1, the module throws error when failing to add a destination
+   address (e.g., invalid URI). If set to 0, it skips the failing address
+   and continues with the next ones.
+
+   Default value is “0”.
+
+   Example 1.39. Set the “ds_load_mode” parameter
+ ...
+ modparam("dispatcher", "ds_load_mode", 1)
+ ...
+
+3.38. reload_delta (int)
+
+   The number of seconds that have to be waited before executing a new
+   reload of dispatcher records. By default there is a rate limiting of
+   maximum one reload in five seconds.
+
+   If set to 0, no rate limit is configured. Note carefully: use this
+   configuration only in tests environments because executing many RPC
+   reload commands at the same time can cause unexpected behavior.
+
+   Default value is “5”.
+
+   Example 1.40. Set reload_delta parameter
+...
+modparam("dispatcher", "reload_delta", 1)
+...
+
 4. Functions
 
    4.1. ds_select_dst(set, alg[, limit])
@@ -1018,7 +1054,7 @@ modparam("dispatcher", "ds_db_extra_attrs", "socket=socket;pref=prefix")
 
    This function can be used from REQUEST_ROUTE, FAILURE_ROUTE.
 
-   Example 1.39. ds_select_dst usage
+   Example 1.41. ds_select_dst usage
 ...
 ds_select_dst("1", "0");
 ...
@@ -1028,7 +1064,7 @@ ds_select_dst("1", "$var(a)");
 ds_select_dst("1", "4", "3");
 ...
 
-   Example 1.40. configuring load balancing with congestion detection
+   Example 1.42. configuring load balancing with congestion detection
 ...
 # sample of SQL provisionning statements
 INSERT INTO "dispatcher"
@@ -1080,7 +1116,7 @@ DEST: {
 
    This function can be used from REQUEST_ROUTE, FAILURE_ROUTE.
 
-   Example 1.41. ds_select_domain usage
+   Example 1.43. ds_select_domain usage
 ...
 $var(a) = 4;
 if(ds_select_domain("1", "$var(a)")) {
@@ -1104,7 +1140,7 @@ if(ds_select_domain("1", "$var(a)")) {
 
    This function can be used from ANY_ROUTE.
 
-   Example 1.42. ds_select usage
+   Example 1.44. ds_select usage
 ...
 $var(a) = 4;
 if(ds_select("1", "$var(a)")) {
@@ -1131,7 +1167,7 @@ if(ds_select("1", "$var(a)")) {
        destination URI; '1', 'r' or 'R' to push the address in R-URI; '2',
        'x' or 'X' to push the address only in the XAVP when failure
        rerouting is enabled. Note that only first character of the
-       parameter matters, therefore once case use a more meaningful value
+       parameter matters, therefore one can use a more meaningful value
        such as 'ruri' instead of 'r'. The parameter can contain pseudo
        variables.
      * limit - a positive integer value to restrict the number of selected
@@ -1147,7 +1183,7 @@ if(ds_select("1", "$var(a)")) {
 
    This function can be used from ANY_ROUTE.
 
-   Example 1.43. ds_select_routes usage
+   Example 1.45. ds_select_routes usage
 ...
 $var(alg) = 4;
 $var(limit) = 8;
@@ -1222,7 +1258,7 @@ failure_route[REROUTE] {
 
    This function can be used from REQUEST_ROUTE, FAILURE_ROUTE.
 
-   Example 1.44. ds_mark_dst usage
+   Example 1.46. ds_mark_dst usage
 ...
 failure_route[tryagain] {
 ...
@@ -1239,9 +1275,12 @@ failure_route[tryagain] {
    Check if a specific group is defined in dispatcher list or database.
      * groupid - A group ID to check.
 
+   It returns true (value 1) if the group exists, or otherwise false (-1
+   when the group is not found; -2 when evaluating the parameter fails).
+
    This function can be used from ANY_ROUTE.
 
-   Example 1.45. ds_list_exists usage
+   Example 1.47. ds_list_exists usage
 ...
 if(ds_list_exists("10")) {
     ...
@@ -1284,7 +1323,7 @@ if(ds_list_exists("10")) {
 
    This function can be used from ANY_ROUTE.
 
-   Example 1.46. ds_is_from_list usage
+   Example 1.48. ds_is_from_list usage
 ...
 if(ds_is_from_list()) {
     ...
@@ -1318,7 +1357,7 @@ if(ds_is_from_list("10", "3", "sip:127.0.0.1:5080")) {
    This function can be used from REQUEST_ROUTE, FAILURE_ROUTE,
    BRANCH_ROUTE and ONREPLY_ROUTE.
 
-   Example 1.47. ds_load_unset usage
+   Example 1.49. ds_load_unset usage
 ...
 route {
     ...
@@ -1359,6 +1398,7 @@ onreply_route {
    5.3. dispatcher.reload
    5.4. dispatcher.ping_active
    5.5. dispatcher.add
+   5.6. dispatcher.remove
 
 5.1.  dispatcher.set_state
 
@@ -1466,6 +1506,27 @@ kamcmd dispatcher.add 2 sip:127.0.0.1:5080
 kamcmd dispatcher.add 3 sip:127.0.0.1:5075 8
 ...
 
+5.6.  dispatcher.remove
+
+   Remove a destination address from the in-memory dispatcher list.
+   Reloading the dispatcher from file or database will re-add destinations
+   that are removed using this command.
+
+   This command will remove all entries that match the group and address.
+
+   Name: dispatcher.remove
+
+   Parameters:
+     * _group_: destination group id
+     * _address_: address of the destination in the _group_
+
+   Example:
+...
+# prototype: kamcmd dispatcher.remove _group_ _address_
+kamcmd dispatcher.remove 2 sip:127.0.0.1:5080
+kamcmd dispatcher.remove 3 sip:127.0.0.1:5075;transport=udp
+...
+
 6. Installation and Running
 
    6.1. Destination List File
@@ -1484,7 +1545,7 @@ kamcmd dispatcher.add 3 sip:127.0.0.1:5075 8
    Optionally, these fields can be followed by:
      * flags - control the mode of using the destination address and
        sending keepalives. It is a bitwise value that can be built using
-       the folowing flags:
+       the following flags:
           + 1 (bit at index 0 - 1 <<0) - inactive destination
           + 2 (bit at index 1 - 1 <<1) - temporary trying destination (in
             the way to become inactive if it does not reply to keepalives
@@ -1540,7 +1601,7 @@ setid(int) destination(sip uri) flags(int,opt) priority(int,opt) attrs(str,opt)
    For database, each element of a line resides in a different column.
    Next is a dispatcher.list file example:
 
-   Example 1.48. dispatcher list file
+   Example 1.50. dispatcher list file
 ...
 #
 # dispatcher destination sets (groups)
@@ -1565,7 +1626,7 @@ r,opt)
 
    Next listing shows a sample config for using the dispatcher module.
 
-   Example 1.49. Kamailio config script - sample dispatcher usage
+   Example 1.51. Kamailio config script - sample dispatcher usage
 ...
 #!KAMAILIO
 #
@@ -1899,48 +1960,48 @@ Chapter 2. Frequently Asked Questions
 
    2.1.
 
-       Does dispatcher provide a fair distribution?
+   Does dispatcher provide a fair distribution?
 
-       The algorithms doing hashing over parts of SIP message don't guarantee
-       a fair distribution. You should do some measurements to decide what
-       hashing algorithm fits better in your environment.
+   The algorithms doing hashing over parts of SIP message don't guarantee
+   a fair distribution. You should do some measurements to decide what
+   hashing algorithm fits better in your environment.
 
-       Other distribution algorithms such as round robin or call load
-       dispatching do a fair distribution in terms of delivered calls to
-       gateways.
+   Other distribution algorithms such as round robin or call load
+   dispatching do a fair distribution in terms of delivered calls to
+   gateways.
 
    2.2.
 
-       Is dispatcher dialog stateful?
+   Is dispatcher dialog stateful?
 
-       No. Dispatcher is stateless, although some distribution algorithms are
-       designed to select same destination for subsequent requests of the same
-       dialog (e.g., hashing the call-id).
+   No. Dispatcher is stateless, although some distribution algorithms are
+   designed to select same destination for subsequent requests of the same
+   dialog (e.g., hashing the call-id).
 
    2.3.
 
-       Where can I find more about Kamailio?
+   Where can I find more about Kamailio?
 
-       Take a look at https://www.kamailio.org/.
+   Take a look at https://www.kamailio.org/.
 
    2.4.
 
-       Where can I post a question about this module?
+   Where can I post a question about this module?
 
-       First at all check if your question was already answered on one of our
-       mailing lists:
-         * User Mailing List -
-           https://lists.kamailio.org/cgi-bin/mailman/listinfo/sr-users
-         * Developer Mailing List -
-           https://lists.kamailio.org/cgi-bin/mailman/listinfo/sr-dev
+   First at all check if your question was already answered on one of our
+   mailing lists:
+     * User Mailing List -
+       https://lists.kamailio.org/cgi-bin/mailman/listinfo/sr-users
+     * Developer Mailing List -
+       https://lists.kamailio.org/cgi-bin/mailman/listinfo/sr-dev
 
-       E-mails regarding any stable version should be sent to
-       <sr-users@lists.kamailio.org> and e-mail regarding development versions
-       or GIT snapshots should be send to <sr-dev@lists.kamailio.org>.
+   E-mails regarding any stable version should be sent to
+   <sr-users@lists.kamailio.org> and e-mail regarding development versions
+   or GIT snapshots should be send to <sr-dev@lists.kamailio.org>.
 
    2.5.
 
-       How can I report a bug?
+   How can I report a bug?
 
-       Please follow the guidelines provided at:
-       https://github.com/kamailio/kamailio/issues
+   Please follow the guidelines provided at:
+   https://github.com/kamailio/kamailio/issues

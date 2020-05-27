@@ -1128,7 +1128,7 @@ void ht_handle_expired_record(ht_t *ht, ht_cell_t *cell)
 		run_top_route(event_rt.rlist[ht->evex_index], fmsg, 0);
 	} else {
 		if(keng!=NULL) {
-			if(keng->froute(fmsg, EVENT_ROUTE,
+			if(sr_kemi_route(keng, fmsg, EVENT_ROUTE,
 						&ht_event_callback, &ht->evex_name)<0) {
 				LM_ERR("error running event route kemi callback\n");
 			}
@@ -1337,7 +1337,7 @@ int ht_rm_cell_op(str *sre, ht_t *ht, int mode, int op)
 	return 0;
 }
 
-int ht_has_cell_op_str(str *sre, ht_t *ht, int mode, int op)
+int ht_match_cell_op_str(str *sre, ht_t *ht, int mode, int op)
 {
 	ht_cell_t *it;
 	str sm;

@@ -31,17 +31,40 @@
 #include "../../core/globals.h"
 #include "../../core/pass_fd.h"
 #include "../../core/timer.h"
+#include "../../core/route.h"
 #include "../../core/fmsg.h"
+#include "../../core/kemi.h"
 #include "../../core/sr_module.h"
 
 #include "tcpops.h"
 
+
+extern str tcpops_event_callback;
+
+static str tcpops_evrt_closed = str_init("tcp:closed");
+static str tcpops_evrt_timeout = str_init("tcp:timeout");
+static str tcpops_evrt_reset = str_init("tcp:reset");
 
 /* globally enabled by default */
 int tcp_closed_event = 1;
 
 int tcp_closed_routes[_TCP_CLOSED_REASON_MAX] =
 	{[0 ... sizeof(tcp_closed_routes)/sizeof(*tcp_closed_routes)-1] = -1};
+
+/**
+ *
+ */
+void tcpops_init_evroutes(void)
+{
+	if(tcpops_event_callback.len > 0) {
+		return;
+	}
+
+	/* get event routes */
+	tcp_closed_routes[TCP_CLOSED_EOF] = route_get(&event_rt, tcpops_evrt_closed.s);
+	tcp_closed_routes[TCP_CLOSED_TIMEOUT] = route_get(&event_rt, tcpops_evrt_timeout.s);
+	tcp_closed_routes[TCP_CLOSED_RESET] = route_get(&event_rt, tcpops_evrt_reset.s);
+}
 
 /**
  * gets the fd of the current message source connection
@@ -107,8 +130,13 @@ error_release:
 	return 0;
 }
 
-#if !defined(HAVE_SO_KEEPALIVE) || !defined(HAVE_TCP_KEEPIDLE) || !defined(HAVE_TCP_KEEPCNT) || !defined(HAVE_TCP_KEEPINTVL)
-	#warning "TCP keepalive is not fully supported by your platform"
+#if !defined(HAVE_SO_KEEPALIVE) || !defined(HAVE_TCP_KEEPCNT) || !defined(HAVE_TCP_KEEPINTVL)
+	#define KSR_TCPOPS_NOKEEPALIVE
+#endif
+
+#ifdef KSR_TCPOPS_NOKEEPALIVE
+
+#warning "TCP keepalive options not supported by this platform"
 
 int tcpops_keepalive_enable(int fd, int idle, int count, int interval, int closefd)
 {
@@ -121,6 +149,7 @@ int tcpops_keepalive_disable(int fd, int closefd)
 	LM_ERR("tcp_keepalive_disable() failed: this module does not support your platform\n");
 	return -1;
 }
+
 #else
 
 int tcpops_keepalive_enable(int fd, int idle, int count, int interval, int closefd)
@@ -133,11 +162,15 @@ int tcpops_keepalive_enable(int fd, int idle, int count, int interval, int close
 		LM_ERR("failed to enable SO_KEEPALIVE: %s\n", strerror(errno));
 		return -1;
 	} else {
-
+#ifdef HAVE_TCP_KEEPIDLE
 		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle,
 						sizeof(idle))<0){
 			LM_ERR("failed to set keepalive idle interval: %s\n", strerror(errno));
 		}
+#else
+		#warning "TCP_KEEPIDLE option not supported by this platform"
+		LM_DBG("TCP_KEEPIDLE option not available - ignoring\n");
+#endif
 
 		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count,
 						sizeof(count))<0){
@@ -202,13 +235,23 @@ static void tcpops_tcp_closed_run_route(tcp_closed_event_info_t *tev)
 	int rt, backup_rt;
 	struct run_act_ctx ctx;
 	sip_msg_t *fmsg;
+	sr_kemi_eng_t *keng = NULL;
+	str *evname;
 
-	rt = tcp_closed_routes[tev->reason];
-	LM_DBG("event reason id: %d rt: %d\n", tev->reason, rt);
-	if (rt == -1) return;
+	if(tcpops_event_callback.len > 0) {
+		rt = -1;
+		keng = sr_kemi_eng_get();
+		if(keng == NULL) {
+			LM_DBG("even callback set, but no kemi engine\n");
+			return;
+		}
+	} else {
+		rt = tcp_closed_routes[tev->reason];
+		LM_DBG("event reason id: %d rt: %d\n", tev->reason, rt);
+		if (rt == -1) return;
+	}
 
-	if (faked_msg_init() < 0)
-	{
+	if (faked_msg_init() < 0) {
 		LM_ERR("faked_msg_init() failed\n");
 		return;
 	}
@@ -218,7 +261,27 @@ static void tcpops_tcp_closed_run_route(tcp_closed_event_info_t *tev)
 	backup_rt = get_route_type();
 	set_route_type(EVENT_ROUTE);
 	init_run_actions_ctx(&ctx);
-	run_top_route(event_rt.rlist[rt], fmsg, 0);
+	if(keng == NULL) {
+		if(rt>=0) {
+			run_top_route(event_rt.rlist[rt], fmsg, 0);
+		} else {
+			LM_DBG("no event route block to execute\n");
+		}
+	} else {
+		if(tev->reason==TCP_CLOSED_TIMEOUT) {
+			evname = &tcpops_evrt_timeout;
+		} else if(tev->reason==TCP_CLOSED_RESET) {
+			evname = &tcpops_evrt_reset;
+		} else {
+			evname = &tcpops_evrt_closed;
+		}
+		if(sr_kemi_route(keng, fmsg, EVENT_ROUTE, &tcpops_event_callback,
+					evname)<0) {
+			LM_ERR("error running event route kemi callback [%.*s - %.*s]\n",
+						tcpops_event_callback.len, tcpops_event_callback.s,
+						evname->len, evname->s);
+		}
+	}
 	set_route_type(backup_rt);
 }
 

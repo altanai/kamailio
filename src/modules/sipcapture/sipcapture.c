@@ -869,9 +869,6 @@ static int mod_init(void)
 	}
 #endif
 
-	kam_srand(time(NULL));
-
-
 	if(db_insert_mode) {
 		LM_INFO("INFO: sipcapture: mod_init: you have enabled INSERT DELAYED \
 				Make sure your DB can support it\n");
@@ -2937,7 +2934,7 @@ static int nosip_hep_msg(sr_event_param_t *evp)
 			set_route_type(rtb);
 			return -1;
 		}
-		if(keng->froute(msg, EVENT_ROUTE, &sc_event_callback, &evname) < 0) {
+		if(sr_kemi_route(keng, msg, EVENT_ROUTE, &sc_event_callback, &evname) < 0) {
 			LM_ERR("error running event route kemi callback\n");
 			set_route_type(rtb);
 			return -1;
@@ -2969,11 +2966,8 @@ static int nosip_hep_msg(sr_event_param_t *evp)
 			return 0;
 		}
 
-		buf = msg->buf + len;
-		len = msg->len - len;
-
-		msg->buf = buf;
-		msg->len = len;
+		buf = msg->buf;
+		len = msg->len;
 	} else {
 		LOG(L_ERR, "ERROR: sipcapture:hep_msg_received: not supported version "
 				"or bad length: v:[%d] l:[%d]\n",

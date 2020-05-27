@@ -1011,7 +1011,7 @@ static struct rpc_delayed_ctx* jsonrpc_delayed_ctx_new(jsonrpc_ctx_t* ctx)
 		return 0;
 	}
 	if(nj->valuestring!=NULL && strlen(nj->valuestring)>JSONRPC_ID_SIZE-1) {
-		LM_ERR("id attribute is too long (%lu/%d)\n", strlen(nj->valuestring),
+		LM_ERR("id attribute is too long (%lu/%d)\n", (unsigned long)strlen(nj->valuestring),
 				JSONRPC_ID_SIZE);
 		return 0;
 	}
@@ -1251,6 +1251,7 @@ static int jsonrpc_dispatch(sip_msg_t* msg, char* s1, char* s2)
 	if(ctx->jreq->root == NULL)
 	{
 		LM_ERR("invalid json doc [[%s]]\n", ctx->jreq->buf.s);
+		srjson_DeleteDoc(ctx->jreq);
 		return NONSIP_MSG_ERROR;
 	}
 	ctx->transport = JSONRPC_TRANS_HTTP;
@@ -1520,6 +1521,11 @@ static int ki_jsonrpcs_exec(sip_msg_t *msg, str *scmd)
 /* clang-format off */
 static sr_kemi_t sr_kemi_jsonrpcs_exports[] = {
 	{ str_init("jsonrpcs"), str_init("exec"),
+		SR_KEMIP_INT, ki_jsonrpcs_exec,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("jsonrpcs"), str_init("execx"),
 		SR_KEMIP_INT, ki_jsonrpcs_exec,
 		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }

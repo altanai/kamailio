@@ -715,9 +715,7 @@ static int ki_t_drop_rcode(sip_msg_t* msg, int rcode)
 	}
 
 	t->uas.status = (unsigned int)rcode;
-	if(t_is_request_route(msg) == 1) {
-		_tmx_tmb.t_release(msg);
-	}
+	_tmx_tmb.t_release_transaction(t);
 	return 0;
 }
 
@@ -1084,6 +1082,7 @@ unsigned long tmx_stats_rld_rcv_rpls(void)
 /**
  *
  */
+/* clang-format off */
 static sr_kemi_t sr_kemi_tmx_exports[] = {
 	{ str_init("tmx"), str_init("t_precheck_trans"),
 		SR_KEMIP_INT, t_precheck_trans,
@@ -1168,6 +1167,7 @@ static sr_kemi_t sr_kemi_tmx_exports[] = {
 
 	{ {0, 0}, {0, 0}, 0, NULL, { 0, 0, 0, 0, 0, 0 } }
 };
+/* clang-format on */
 
 /**
  *

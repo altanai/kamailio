@@ -164,7 +164,7 @@ found_repl:
 	return 0;
 
 error:
-	return 1;
+	return -1;
 }
 
 int pp_subst_run(char **data)
@@ -219,8 +219,13 @@ void pp_ifdef_level_update(int val)
 void pp_ifdef_level_check(void)
 {
 	if(_pp_ifdef_level!=0) {
-		LM_WARN("different number of preprocessor directives:"
-				" N(#!IF[N]DEF) - N(#!ENDIF) = %d\n", _pp_ifdef_level);
+		if (_pp_ifdef_level > 0) {
+	                LM_WARN("different number of preprocessor directives:"
+				" %d more #!if[n]def as #!endif\n", _pp_ifdef_level);
+		} else {
+			LM_WARN("different number of preprocessor directives:"
+				" %d more #!endif as #!if[n]def\n", (_pp_ifdef_level)*-1);
+		}
 	} else {
 		LM_DBG("same number of pairing preprocessor directives"
 			" #!IF[N]DEF - #!ENDIF\n");
@@ -245,7 +250,7 @@ void pp_define_core(void)
 
 	n = snprintf(p, 64 - (int)(p-defval), "_%d", VERSIONVAL/1000000);
 	if(n<0 || n>=64 - (int)(p-defval)) {
-		LM_ERR("faild to build define token\n");
+		LM_ERR("failed to build define token\n");
 		return;
 	}
 	pp_define_set_type(0);
@@ -257,7 +262,7 @@ void pp_define_core(void)
 	n = snprintf(p, 64 - (int)(p-defval), "_%d_%d", VERSIONVAL/1000000,
 			(VERSIONVAL%1000000)/1000);
 	if(n<0 || n>=64 - (int)(p-defval)) {
-		LM_ERR("faild to build define token\n");
+		LM_ERR("failed to build define token\n");
 		return;
 	}
 	pp_define_set_type(0);
@@ -269,7 +274,7 @@ void pp_define_core(void)
 	n = snprintf(p, 64 - (int)(p-defval), "_%d_%d_%d", VERSIONVAL/1000000,
 			(VERSIONVAL%1000000)/1000, VERSIONVAL%1000);
 	if(n<0 || n>=64 - (int)(p-defval)) {
-		LM_ERR("faild to build define token\n");
+		LM_ERR("failed to build define token\n");
 		return;
 	}
 	pp_define_set_type(0);

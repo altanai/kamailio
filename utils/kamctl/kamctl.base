@@ -112,8 +112,8 @@ fi
 if [ -z "$DIR" ] ; then
 	DIR=`dirname $0`
 fi
-if [ -z "$OSERBIN" ] ; then
-	OSERBIN=$DIR/kamailio
+if [ -z "$KAMBIN" ] ; then
+	KAMBIN=$DIR/kamailio
 fi
 
 ##### ------------------------------------------------ #####
@@ -353,6 +353,11 @@ DIALPLAN_SUBST_EXP_COLUMN=subst_exp
 DIALPLAN_REPL_EXP_COLUMN=repl_exp
 DIALPLAN_ATTRS_COLUMN=attrs
 
+# ACC table
+if [ -z "$ACC_TABLE" ] ; then
+	ACC_TABLE=acc
+fi
+
 #
 ##### ------------------------------------------------ #####
 ### usage functions
@@ -548,6 +553,7 @@ cat <<EOF
  srv sockets ................... show the list of listen sockets
  srv aliases ................... show the list of server aliases
  srv rpclist ................... show the list of server rpc commands
+ srv version ................... show the server version
 EOF
 }
 USAGE_FUNCTIONS="$USAGE_FUNCTIONS usage_ksr_srv"
@@ -566,6 +572,18 @@ cat <<EOF
 EOF
 }
 USAGE_FUNCTIONS="$USAGE_FUNCTIONS usage_mtree"
+
+usage_acc() {
+	echo
+	mecho " -- command 'acc' - manage accounding records"
+	echo
+cat <<EOF
+ acc initdb .................. init acc table by adding extra colums
+ acc showdb .................. show content of acc table
+ recent [<secs>] ............. show most recent records in acc (default 300s)
+EOF
+}
+USAGE_FUNCTIONS="$USAGE_FUNCTIONS usage_acc"
 
 
 ##### ----------------------------------------------- #####
@@ -649,7 +667,7 @@ in SIP_DOMAIN"
 
 # check the parameter if it is a valid address of record (user@domain)
 check_aor() {
-	echo "$1" | $EGREP "^$USERNAME_RE@.*\..*" >/dev/null
+	echo "$1" | $EGREP "^$USERNAME_RE@.+" >/dev/null
 	if [ $? -ne 0 ] ; then
 		echo "error: invalid AoR: $1" >&2
 		exit 1
@@ -658,7 +676,7 @@ check_aor() {
 
 # check the parameter if it is a valid address of record (user@domain)
 is_aor() {
-	echo "$1" | $EGREP "^$USERNAME_RE@.*\..*" >/dev/null
+	echo "$1" | $EGREP "^$USERNAME_RE@.+" >/dev/null
 	if [ $? -ne 0 ] ; then
 		false
 	else
@@ -668,7 +686,7 @@ is_aor() {
 
 # check the parameter if it is a valid SIP address of record (sip:user@domain)
 check_sipaor() {
-	echo "$1" | $EGREP "^sip(s)?:$USERNAME_RE@.*\..*" >/dev/null
+	echo "$1" | $EGREP "^sip(s)?:$USERNAME_RE@.+" >/dev/null
 	if [ $? -ne 0 ] ; then
 		echo "error: invalid SIP AoR: $1" >&2
 		exit 1
@@ -679,7 +697,7 @@ check_sipaor() {
 # quite simplified now -- it captures just very basic
 # errors
 check_uri() {
-	echo "$1" | $EGREP "^sip(s)?:($USERNAME_RE@)?.*\..*"  > /dev/null
+	echo "$1" | $EGREP "^sip(s)?:($USERNAME_RE@)?.+"  > /dev/null
 	if [ $? -ne 0 ] ; then
 		echo "error: invalid SIP URI: $1" >&2
 		exit 1

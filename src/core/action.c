@@ -383,10 +383,16 @@ int do_action(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 			init_dest_info(&dst);
 			if (a->type==FORWARD_UDP_T) dst.proto=PROTO_UDP;
 #ifdef USE_TCP
-			else if (a->type==FORWARD_TCP_T) dst.proto= PROTO_TCP;
+			else if (a->type==FORWARD_TCP_T) {
+				dst.proto= PROTO_TCP;
+				dst.id = msg->otcpid;
+			}
 #endif
 #ifdef USE_TLS
-			else if (a->type==FORWARD_TLS_T) dst.proto= PROTO_TLS;
+			else if (a->type==FORWARD_TLS_T) {
+				dst.proto= PROTO_TLS;
+				dst.id = msg->otcpid;
+			}
 #endif
 #ifdef USE_SCTP
 			else if (a->type==FORWARD_SCTP_T) dst.proto=PROTO_SCTP;
@@ -1434,6 +1440,9 @@ match_cleanup:
 				ret=E_BUG;
 				goto error;
 			}
+			LM_DBG("setting send-socket to [%.*s]\n",
+					((struct socket_info*)a->val[0].u.data)->sock_str.len,
+					((struct socket_info*)a->val[0].u.data)->sock_str.s);
 			set_force_socket(msg, (struct socket_info*)a->val[0].u.data);
 			ret=1; /* continue processing */
 			break;
@@ -1527,7 +1536,9 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 {
 	struct action* t;
 	int ret;
-	unsigned int ms = 0;
+	struct timeval tvb = {0}, tve = {0};
+	struct timezone tz;
+	unsigned int tdiff;
 
 	ret=E_UNSPEC;
 	h->rec_lev++;
@@ -1555,8 +1566,11 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 	}
 
 	for (t=a; t!=0; t=t->next){
-		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0))
-			ms = TICKS_TO_MS(get_ticks_raw());
+
+		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)
+				&& is_printable(cfg_get(core, core_cfg, latency_log))) {
+			gettimeofday(&tvb, &tz);
+		}
 		_cfg_crt_action = t;
 		if(unlikely(log_prefix_mode==1)) {
 			log_prefix_set(msg);
@@ -1566,16 +1580,19 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 		if(unlikely(log_prefix_mode==1)) {
 			log_prefix_set(msg);
 		}
-		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)) {
-			ms = TICKS_TO_MS(get_ticks_raw()) - ms;
-			if(ms >= cfg_get(core, core_cfg, latency_limit_action)) {
+		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)
+				&& is_printable(cfg_get(core, core_cfg, latency_log))) {
+			gettimeofday(&tve, &tz);
+			tdiff = (tve.tv_sec - tvb.tv_sec) * 1000000
+					   + (tve.tv_usec - tvb.tv_usec);
+			if(tdiff >= cfg_get(core, core_cfg, latency_limit_action)) {
 				LOG(cfg_get(core, core_cfg, latency_log),
 						"alert - action [%s (%d)]"
-						" cfg [%s:%d] took too long [%u ms]\n",
+						" cfg [%s:%d] took too long [%u us]\n",
 						is_mod_func(t) ?
 							((cmd_export_t*)(t->val[0].u.data))->name
 							: "corefunc",
-						t->type, (t->cfile)?t->cfile:"", t->cline, ms);
+						t->type, (t->cfile)?t->cfile:"", t->cline, tdiff);
 			}
 		}
 		/* break, return or drop/exit stop execution of the current
@@ -1685,7 +1702,7 @@ int run_child_one_init_route(void)
 		} else {
 			bctx = sr_kemi_act_ctx_get();
 			sr_kemi_act_ctx_set(&ctx);
-			if(keng->froute(fmsg, EVENT_ROUTE,
+			if(sr_kemi_route(keng, fmsg, EVENT_ROUTE,
 						&kemi_event_route_callback, &evname)<0) {
 				LM_ERR("error running event route kemi callback\n");
 				return -1;

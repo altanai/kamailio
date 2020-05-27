@@ -55,7 +55,9 @@
 #include "../../modules/mqueue/api.h"
 #include "../../modules/ndb_mongodb/api.h"
 
-#include "app_lua_api.h"
+#include "../../modules/app_lua/modapi.h"
+
+#include "app_lua_sr_api.h"
 
 #define SR_LUA_EXP_MOD_SL         (1<<0)
 #define SR_LUA_EXP_MOD_TM         (1<<1)
@@ -82,6 +84,8 @@
 #define SR_LUA_EXP_MOD_TMX        (1<<22)
 #define SR_LUA_EXP_MOD_MQUEUE     (1<<23)
 #define SR_LUA_EXP_MOD_NDB_MONGODB (1<<24)
+
+extern app_lua_api_t _app_lua_api;
 
 /**
  *
@@ -225,7 +229,7 @@ static int lua_sr_sl_send_reply (lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SL))
 	{
@@ -261,7 +265,7 @@ static int lua_sr_sl_get_reply_totag (lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SL))
 	{
@@ -302,7 +306,7 @@ static int lua_sr_tm_t_reply(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -337,7 +341,7 @@ static int lua_sr_tm_t_relay(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -362,7 +366,7 @@ static int lua_sr_tm_t_on_failure(lua_State *L)
 	int i;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -403,7 +407,7 @@ static int lua_sr_tm_t_on_branch(lua_State *L)
 	int i;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -444,7 +448,7 @@ static int lua_sr_tm_t_on_reply(lua_State *L)
 	int i;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -484,7 +488,7 @@ static int lua_sr_tm_t_check_trans(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -509,7 +513,7 @@ static int lua_sr_tm_t_is_canceled(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -534,7 +538,7 @@ static int lua_sr_tm_t_newtran(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -559,7 +563,7 @@ static int lua_sr_tm_t_release(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -585,7 +589,7 @@ static int lua_sr_tm_t_replicate(lua_State *L)
 	sr_lua_env_t *env_L;
 	str suri;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -621,7 +625,7 @@ static int lua_sr_tm_t_on_branch_failure(lua_State *L)
 	int i;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -672,7 +676,7 @@ static int lua_sr_tm_t_load_contacts(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -697,7 +701,7 @@ static int lua_sr_tm_t_next_contacts(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM))
 	{
@@ -952,7 +956,7 @@ static int lua_sr_sqlops_xquery(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SQLOPS))
 	{
@@ -1007,7 +1011,7 @@ static int lua_sr_rr_record_route(lua_State *L)
 	str sv = {0, 0};
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_RR))
 	{
@@ -1038,7 +1042,7 @@ static int lua_sr_rr_loose_route(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_RR))
 	{
@@ -1064,7 +1068,7 @@ static int lua_sr_rr_add_rr_param(lua_State *L)
 	sr_lua_env_t *env_L;
 	str param;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_RR))
 	{
@@ -1109,7 +1113,7 @@ static int lua_sr_auth_challenge_hftype(lua_State *L, int hftype)
 	int flags;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_AUTH))
 	{
@@ -1166,7 +1170,7 @@ static int lua_sr_auth_pv_authenticate(lua_State *L, int hftype)
 	int flags;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_AUTH))
 	{
@@ -1223,7 +1227,7 @@ static int lua_sr_auth_consume_credentials(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_AUTH))
 	{
@@ -1263,7 +1267,7 @@ static int lua_sr_auth_db_authenticate(lua_State *L, hdr_types_t hftype)
 	str table = {0, 0};
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_AUTH_DB))
 	{
@@ -1330,7 +1334,7 @@ static int lua_sr_maxfwd_process_maxfwd(lua_State *L)
 	int limit;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_MAXFWD))
 	{
@@ -1380,7 +1384,7 @@ static int lua_sr_registrar_save(lua_State *L)
 	sr_lua_env_t *env_L;
 
 	flags = 0;
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_REGISTRAR))
 	{
@@ -1431,7 +1435,7 @@ static int lua_sr_registrar_lookup(lua_State *L)
 	str uri = STR_NULL;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_REGISTRAR))
 	{
@@ -1482,7 +1486,7 @@ static int lua_sr_registrar_lookup_to_dset(lua_State *L)
 	str uri = STR_NULL;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_REGISTRAR))
 	{
@@ -1532,7 +1536,7 @@ static int lua_sr_registrar_registered(lua_State *L)
 	str table;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_REGISTRAR))
 	{
@@ -1584,7 +1588,7 @@ static int lua_sr_dispatcher_select(lua_State *L)
 	int mode;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_DISPATCHER))
 	{
@@ -1624,7 +1628,7 @@ static int lua_sr_dispatcher_next(lua_State *L)
 	int mode;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_DISPATCHER))
 	{
@@ -1657,7 +1661,7 @@ static int lua_sr_dispatcher_mark(lua_State *L)
 	int mode;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_DISPATCHER))
 	{
@@ -1690,7 +1694,7 @@ static int lua_sr_dispatcher_is_from(lua_State *L)
 	int mode;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_DISPATCHER))
 	{
@@ -1738,7 +1742,7 @@ static int lua_sr_xhttp_reply(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_XHTTP))
 	{
@@ -1786,7 +1790,7 @@ static int lua_sr_sdpops_with_media(lua_State *L)
 	str media;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -1823,7 +1827,7 @@ static int lua_sr_sdpops_with_active_media(lua_State *L)
 	str media;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -1860,7 +1864,7 @@ static int lua_sr_sdpops_with_transport(lua_State *L)
 	str transport;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -1897,7 +1901,7 @@ static int lua_sr_sdpops_with_codecs_by_id(lua_State *L)
 	str codecs;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -1934,7 +1938,7 @@ static int lua_sr_sdpops_with_codecs_by_name(lua_State *L)
 	str codecs;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -1970,7 +1974,7 @@ static int lua_sr_sdpops_with_ice(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2005,7 +2009,7 @@ static int lua_sr_sdpops_keep_codecs_by_id(lua_State *L)
 	str media;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2046,7 +2050,7 @@ static int lua_sr_sdpops_keep_codecs_by_name(lua_State *L)
 	str codecs;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2086,7 +2090,7 @@ static int lua_sr_sdpops_remove_media(lua_State *L)
 	str media;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2123,7 +2127,7 @@ static int lua_sr_sdpops_remove_transport(lua_State *L)
 	str transport;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2161,7 +2165,7 @@ static int lua_sr_sdpops_remove_line_by_prefix(lua_State *L)
 	str media = STR_NULL;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2204,7 +2208,7 @@ static int lua_sr_sdpops_remove_codecs_by_id(lua_State *L)
 	str codecs;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2241,7 +2245,7 @@ static int lua_sr_sdpops_remove_codecs_by_name(lua_State *L)
 	str codecs;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SDPOPS))
 	{
@@ -2298,7 +2302,7 @@ static int lua_sr_pres_auth_status(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_PRESENCE))
 	{
@@ -2335,7 +2339,7 @@ static int lua_sr_pres_handle_publish(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_PRESENCE))
 	{
@@ -2367,7 +2371,7 @@ static int lua_sr_pres_handle_subscribe(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_PRESENCE))
 	{
@@ -2425,7 +2429,7 @@ static int lua_sr_pres_check_basic(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_PRESENCE_XML))
 	{
@@ -2463,7 +2467,7 @@ static int lua_sr_pres_check_activities(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_PRESENCE_XML))
 	{
@@ -2510,7 +2514,7 @@ static int lua_sr_textops_is_privacy(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TEXTOPS))
 	{
@@ -2553,7 +2557,7 @@ static int lua_sr_pua_usrloc_set_publish(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_PUA_USRLOC))
 	{
@@ -2593,7 +2597,7 @@ static int lua_sr_siputils_has_totag(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SIPUTILS))
 	{
@@ -2626,7 +2630,7 @@ static int lua_sr_siputils_is_uri_user_e164(lua_State *L)
 	sr_lua_env_t *env_L;
 	str param[1];
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SIPUTILS))
 	{
@@ -2673,7 +2677,7 @@ static int lua_sr_rls_handle_subscribe(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_RLS))
 	{
@@ -2720,7 +2724,7 @@ static int lua_sr_rls_handle_notify(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_RLS))
 	{
@@ -2762,7 +2766,7 @@ static int lua_sr_alias_db_lookup(lua_State *L)
 	str param[1];
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_ALIAS_DB))
 	{
@@ -2805,7 +2809,7 @@ static int lua_sr_msilo_store(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if (!(_sr_lua_exp_reg_mods & SR_LUA_EXP_MOD_MSILO))
 	{
@@ -2851,7 +2855,7 @@ static int lua_sr_msilo_dump(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if (!(_sr_lua_exp_reg_mods & SR_LUA_EXP_MOD_MSILO))
 	{
@@ -2907,7 +2911,7 @@ static int lua_sr_uac_replace_x(lua_State *L, int htype)
 	sr_lua_env_t *env_L;
 	str param[2];
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if (!(_sr_lua_exp_reg_mods & SR_LUA_EXP_MOD_UAC))
 	{
@@ -2974,7 +2978,7 @@ static int lua_sr_uac_req_send(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if (!(_sr_lua_exp_reg_mods & SR_LUA_EXP_MOD_UAC))
 	{
@@ -3013,7 +3017,7 @@ static int lua_sr_sanity_check(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SANITY))
 	{
@@ -3112,7 +3116,7 @@ static int lua_sr_tmx_t_suspend(lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(!(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TMX))
 	{
@@ -3676,6 +3680,8 @@ int lua_sr_exp_register_mod(char *mname)
  */
 void lua_sr_exp_openlibs(lua_State *L)
 {
+	LM_DBG("exporting sr registered extensions\n");
+
 	if(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_SL)
 		luaL_openlib(L, "sr.sl",         _sr_sl_Map,          0);
 	if(_sr_lua_exp_reg_mods&SR_LUA_EXP_MOD_TM)

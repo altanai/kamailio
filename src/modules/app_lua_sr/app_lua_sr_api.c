@@ -40,13 +40,60 @@
 #include "../../core/xavp.h"
 #include "../../core/kemi.h"
 
-#include "app_lua_api.h"
-#include "app_lua_kemi_export.h"
-#include "app_lua_sr.h"
+#include "../../modules/app_lua/modapi.h"
 
-#define KSR_APP_LUA_LOG_EXPORTS (1<<0)
+#include "app_lua_sr_api.h"
+#include "app_lua_sr_exp.h"
 
-extern int _ksr_app_lua_log_mode;
+extern app_lua_api_t _app_lua_api;
+
+/**
+ *
+ */
+int app_lua_return_int(lua_State *L, int v)
+{
+	lua_pushinteger(L, v);
+	return 1;
+}
+
+/**
+ *
+ */
+int app_lua_return_error(lua_State *L)
+{
+	lua_pushinteger(L, -1);
+	return 1;
+}
+
+/**
+ *
+ */
+int app_lua_return_boolean(lua_State *L, int b)
+{
+	if(b==SRLUA_FALSE)
+		lua_pushboolean(L, SRLUA_FALSE);
+	else
+		lua_pushboolean(L, SRLUA_TRUE);
+	return 1;
+}
+
+/**
+ *
+ */
+int app_lua_return_false(lua_State *L)
+{
+	lua_pushboolean(L, SRLUA_FALSE);
+	return 1;
+}
+
+/**
+ *
+ */
+int app_lua_return_true(lua_State *L)
+{
+	lua_pushboolean(L, SRLUA_TRUE);
+	return 1;
+}
 
 /**
  *
@@ -135,7 +182,7 @@ static int lua_sr_modf (lua_State *L)
 	argc = 0;
 	memset(luav, 0, MAX_ACTIONS*sizeof(char*));
 	memset(argv, 0, MAX_ACTIONS*sizeof(char*));
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	if(env_L->msg==NULL)
 		goto error;
 
@@ -171,7 +218,7 @@ static int lua_sr_modf (lua_State *L)
 			argv[i] = (char*)pkg_malloc(strlen(luav[i])+1);
 			if(argv[i]==NULL)
 			{
-				PKG_MEM_ERROR;
+				LM_ERR("no more pkg\n");
 				goto error;
 			}
 			strcpy(argv[i], luav[i]);
@@ -290,6 +337,7 @@ error:
 	return 1;
 }
 
+
 /**
  *
  */
@@ -332,7 +380,7 @@ static int lua_sr_setflag (lua_State *L)
 	int flag;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	flag = lua_tointeger(L, -1);
 
 	if(env_L->msg==NULL)
@@ -359,7 +407,7 @@ static int lua_sr_resetflag (lua_State *L)
 	int flag;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	flag = lua_tointeger(L, -1);
 
 	if(env_L->msg==NULL)
@@ -387,7 +435,7 @@ static int lua_sr_isflagset (lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	flag = lua_tointeger(L, -1);
 
 	if(env_L->msg==NULL)
@@ -417,7 +465,7 @@ static int lua_sr_setbflag (lua_State *L)
 	int branch;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	if(lua_gettop(L)==1)
 	{
 		flag = lua_tointeger(L, -1);
@@ -455,7 +503,7 @@ static int lua_sr_resetbflag (lua_State *L)
 	int branch;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	if(lua_gettop(L)==1)
 	{
 		flag = lua_tointeger(L, -1);
@@ -494,7 +542,7 @@ static int lua_sr_isbflagset (lua_State *L)
 	int ret;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	if(lua_gettop(L)==1)
 	{
 		flag = lua_tointeger(L, -1);
@@ -535,7 +583,7 @@ static int lua_sr_seturi (lua_State *L)
 	str uri;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	uri.s = (char*)lua_tostring(L, -1);
 	if(uri.s==NULL)
 	{
@@ -573,7 +621,7 @@ static int lua_sr_setuser (lua_State *L)
 	str uri;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	uri.s = (char*)lua_tostring(L, -1);
 	if(uri.s==NULL)
 	{
@@ -611,7 +659,7 @@ static int lua_sr_sethost (lua_State *L)
 	str uri;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	uri.s = (char*)lua_tostring(L, -1);
 	if(uri.s==NULL)
 	{
@@ -647,7 +695,7 @@ static int lua_sr_setdsturi (lua_State *L)
 	str uri;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	uri.s = (char*)lua_tostring(L, -1);
 	if(uri.s==NULL)
 	{
@@ -677,7 +725,7 @@ static int lua_sr_resetdsturi (lua_State *L)
 {
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	if(env_L->msg==NULL)
 	{
 		LM_WARN("invalid parameters from Lua env\n");
@@ -725,7 +773,7 @@ static int lua_sr_hdr_append (lua_State *L)
 	char *hdr;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	txt = (char*)lua_tostring(L, -1);
 	if(txt==NULL || env_L->msg==NULL)
@@ -775,7 +823,7 @@ static int lua_sr_hdr_remove (lua_State *L)
 	str hname;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	txt = (char*)lua_tostring(L, -1);
 	if(txt==NULL || env_L->msg==NULL)
@@ -817,7 +865,7 @@ static int lua_sr_hdr_insert (lua_State *L)
 	char *hdr;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	txt = (char*)lua_tostring(L, -1);
 	if(txt==NULL || env_L->msg==NULL)
@@ -835,7 +883,7 @@ static int lua_sr_hdr_insert (lua_State *L)
 	memcpy(hdr, txt, len);
 	anchor = anchor_lump(env_L->msg,
 				hf->name.s + hf->len - env_L->msg->buf, 0, 0);
-	if(insert_new_lump_before(anchor, hdr, len, 0) == 0)
+	if((anchor==NULL) || (insert_new_lump_before(anchor, hdr, len, 0) == 0))
 	{
 		LM_ERR("can't insert lump\n");
 		pkg_free(hdr);
@@ -853,7 +901,7 @@ static int lua_sr_hdr_append_to_reply (lua_State *L)
 	int len;
 	sr_lua_env_t *env_L;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	txt = (char*)lua_tostring(L, -1);
 	if(txt==NULL || env_L->msg==NULL)
@@ -923,7 +971,7 @@ static int lua_sr_pv_get_val (lua_State *L, int rmode)
 	sr_lua_env_t *env_L;
 	int pl;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	pvn.s = (char*)lua_tostring(L, -1);
 	if(pvn.s==NULL || env_L->msg==NULL) {
@@ -995,7 +1043,7 @@ static int lua_sr_pv_get_valx (lua_State *L, int rmode)
 	int xival = 0;
 	str xsval = str_init("");
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(lua_gettop(L)<2) {
 		LM_ERR("to few parameters [%d]\n", lua_gettop(L));
@@ -1076,7 +1124,7 @@ static int lua_sr_pv_seti (lua_State *L)
 	sr_lua_env_t *env_L;
 	int pl;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(lua_gettop(L)<2)
 	{
@@ -1130,7 +1178,7 @@ static int lua_sr_pv_sets (lua_State *L)
 	sr_lua_env_t *env_L;
 	int pl;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(lua_gettop(L)<2)
 	{
@@ -1188,7 +1236,7 @@ static int lua_sr_pv_unset (lua_State *L)
 	sr_lua_env_t *env_L;
 	int pl;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	pvn.s = (char*)lua_tostring(L, -1);
 	if(pvn.s==NULL || env_L->msg==NULL)
@@ -1230,7 +1278,7 @@ static int lua_sr_pv_is_null (lua_State *L)
 	sr_lua_env_t *env_L;
 	int pl;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	pvn.s = (char*)lua_tostring(L, -1);
 	if(pvn.s==NULL || env_L->msg==NULL)
@@ -1416,7 +1464,7 @@ static int lua_sr_xavp_get(lua_State *L)
 	lua_Number elem = 1;
 	int xavp_size = 0;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 	num_param = lua_gettop(L);
 	if(num_param<2 && num_param>3)
 	{
@@ -1510,7 +1558,7 @@ static int lua_sr_xavp_get_keys (lua_State *L)
 	sr_xavp_t *avp;
 	struct str_list *keys, *k;
 
-	env_L = sr_lua_env_get();
+	env_L = _app_lua_api.env_get_f();
 
 	if(lua_gettop(L)<2)
 	{
@@ -1561,637 +1609,10 @@ static const luaL_Reg _sr_xavp_Map [] = {
  */
 void lua_sr_core_openlibs(lua_State *L)
 {
+	LM_DBG("exporting sr core extensions\n");
+
 	luaL_openlib(L, "sr",      _sr_core_Map, 0);
 	luaL_openlib(L, "sr.hdr",  _sr_hdr_Map,  0);
 	luaL_openlib(L, "sr.pv",   _sr_pv_Map,   0);
 	luaL_openlib(L, "sr.xavp", _sr_xavp_Map, 0);
-}
-
-
-/**
- *
- */
-int sr_kemi_lua_return_int(lua_State* L, sr_kemi_t *ket, int rc)
-{
-	if(ket->rtype==SR_KEMIP_INT) {
-		lua_pushinteger(L, rc);
-		return 1;
-	}
-	if(ket->rtype==SR_KEMIP_BOOL && rc!=SR_KEMI_FALSE) {
-		return app_lua_return_true(L);
-	}
-	return app_lua_return_false(L);
-}
-
-/**
- *
- */
-int sr_kemi_lua_exec_func_ex(lua_State* L, sr_kemi_t *ket, int pdelta)
-{
-	int i;
-	int argc;
-	int ret;
-	str *fname;
-	str *mname;
-	sr_kemi_val_t vps[SR_KEMI_PARAMS_MAX];
-	sr_lua_env_t *env_L;
-
-	env_L = sr_lua_env_get();
-
-	if(env_L==NULL || env_L->msg==NULL || ket==NULL) {
-		LM_ERR("invalid Lua environment attributes or parameters\n");
-		return app_lua_return_false(L);
-	}
-
-	fname = &ket->fname;
-	mname = &ket->mname;
-
-	argc = lua_gettop(L);
-	if(argc==pdelta && ket->ptypes[0]==SR_KEMIP_NONE) {
-		ret = ((sr_kemi_fm_f)(ket->func))(env_L->msg);
-		return sr_kemi_lua_return_int(L, ket, ret);
-	}
-	if(argc==pdelta && ket->ptypes[0]!=SR_KEMIP_NONE) {
-		LM_ERR("invalid number of parameters for: %.*s.%.*s\n",
-				mname->len, mname->s, fname->len, fname->s);
-		return app_lua_return_false(L);
-	}
-
-	if(argc>=SR_KEMI_PARAMS_MAX+pdelta) {
-		LM_ERR("too many parameters for: %.*s.%.*s\n",
-				mname->len, mname->s, fname->len, fname->s);
-		return app_lua_return_false(L);
-	}
-
-	memset(vps, 0, SR_KEMI_PARAMS_MAX*sizeof(sr_kemi_val_t));
-	for(i=0; i<SR_KEMI_PARAMS_MAX; i++) {
-		if(ket->ptypes[i]==SR_KEMIP_NONE) {
-			break;
-		}
-		if(argc<i+pdelta+1) {
-			LM_ERR("not enough parameters for: %.*s.%.*s\n",
-					mname->len, mname->s, fname->len, fname->s);
-			return app_lua_return_false(L);
-		}
-		if(ket->ptypes[i]==SR_KEMIP_STR) {
-			vps[i].s.s = (char*)lua_tostring(L, i+pdelta+1);
-			if(vps[i].s.s!=NULL) {
-				if(lua_isstring(L, i+pdelta+1)) {
-#if LUA_VERSION_NUM > 501
-					vps[i].s.len = lua_rawlen(L, i+pdelta+1);
-#else
-					vps[i].s.len = lua_strlen(L, i+pdelta+1);
-#endif
-				} else {
-					vps[i].s.len = strlen(vps[i].s.s);
-				}
-			} else {
-				vps[i].s.len = 0;
-			}
-			LM_DBG("param[%d] for: %.*s is str: %.*s\n", i,
-				fname->len, fname->s, vps[i].s.len, vps[i].s.s);
-		} else if(ket->ptypes[i]==SR_KEMIP_INT) {
-			vps[i].n = lua_tointeger(L, i+pdelta+1);
-			LM_DBG("param[%d] for: %.*s is int: %d\n", i,
-				fname->len, fname->s, vps[i].n);
-		} else {
-			LM_ERR("unknown parameter type %d (%d)\n", ket->ptypes[i], i);
-			return app_lua_return_false(L);
-		}
-	}
-
-	switch(i) {
-		case 1:
-			if(ket->ptypes[0]==SR_KEMIP_INT) {
-				ret = ((sr_kemi_fmn_f)(ket->func))(env_L->msg, vps[0].n);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fms_f)(ket->func))(env_L->msg, &vps[0].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
-				return app_lua_return_false(L);
-			}
-		break;
-		case 2:
-			if(ket->ptypes[0]==SR_KEMIP_INT) {
-				if(ket->ptypes[1]==SR_KEMIP_INT) {
-					ret = ((sr_kemi_fmnn_f)(ket->func))(env_L->msg, vps[0].n, vps[1].n);
-					return sr_kemi_lua_return_int(L, ket, ret);
-				} else if(ket->ptypes[1]==SR_KEMIP_STR) {
-					ret = ((sr_kemi_fmns_f)(ket->func))(env_L->msg, vps[0].n, &vps[1].s);
-					return sr_kemi_lua_return_int(L, ket, ret);
-				} else {
-					LM_ERR("invalid parameters for: %.*s\n",
-							fname->len, fname->s);
-					return app_lua_return_false(L);
-				}
-			} else if(ket->ptypes[0]==SR_KEMIP_STR) {
-				if(ket->ptypes[1]==SR_KEMIP_INT) {
-					ret = ((sr_kemi_fmsn_f)(ket->func))(env_L->msg, &vps[0].s, vps[1].n);
-					return sr_kemi_lua_return_int(L, ket, ret);
-				} else if(ket->ptypes[1]==SR_KEMIP_STR) {
-					ret = ((sr_kemi_fmss_f)(ket->func))(env_L->msg, &vps[0].s, &vps[1].s);
-					return sr_kemi_lua_return_int(L, ket, ret);
-				} else {
-					LM_ERR("invalid parameters for: %.*s\n",
-							fname->len, fname->s);
-					return app_lua_return_false(L);
-				}
-			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
-				return app_lua_return_false(L);
-			}
-		break;
-		case 3:
-			if(ket->ptypes[0]==SR_KEMIP_INT) {
-				if(ket->ptypes[1]==SR_KEMIP_INT) {
-					if(ket->ptypes[2]==SR_KEMIP_INT) {
-						ret = ((sr_kemi_fmnnn_f)(ket->func))(env_L->msg,
-								vps[0].n, vps[1].n, vps[2].n);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
-						ret = ((sr_kemi_fmnns_f)(ket->func))(env_L->msg,
-								vps[0].n, vps[1].n, &vps[2].s);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else {
-						LM_ERR("invalid parameters for: %.*s\n",
-								fname->len, fname->s);
-						return app_lua_return_false(L);
-					}
-				} else if(ket->ptypes[1]==SR_KEMIP_STR) {
-					if(ket->ptypes[2]==SR_KEMIP_INT) {
-						ret = ((sr_kemi_fmnsn_f)(ket->func))(env_L->msg,
-								vps[0].n, &vps[1].s, vps[2].n);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
-						ret = ((sr_kemi_fmnss_f)(ket->func))(env_L->msg,
-								vps[0].n, &vps[1].s, &vps[2].s);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else {
-						LM_ERR("invalid parameters for: %.*s\n",
-								fname->len, fname->s);
-						return app_lua_return_false(L);
-					}
-				} else {
-					LM_ERR("invalid parameters for: %.*s\n",
-							fname->len, fname->s);
-					return app_lua_return_false(L);
-				}
-			} else if(ket->ptypes[0]==SR_KEMIP_STR) {
-				if(ket->ptypes[1]==SR_KEMIP_INT) {
-					if(ket->ptypes[2]==SR_KEMIP_INT) {
-						ret = ((sr_kemi_fmsnn_f)(ket->func))(env_L->msg,
-								&vps[0].s, vps[1].n, vps[2].n);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
-						ret = ((sr_kemi_fmsns_f)(ket->func))(env_L->msg,
-								&vps[0].s, vps[1].n, &vps[2].s);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else {
-						LM_ERR("invalid parameters for: %.*s\n",
-								fname->len, fname->s);
-						return app_lua_return_false(L);
-					}
-				} else if(ket->ptypes[1]==SR_KEMIP_STR) {
-					if(ket->ptypes[2]==SR_KEMIP_INT) {
-						ret = ((sr_kemi_fmssn_f)(ket->func))(env_L->msg,
-								&vps[0].s, &vps[1].s, vps[2].n);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
-						ret = ((sr_kemi_fmsss_f)(ket->func))(env_L->msg,
-								&vps[0].s, &vps[1].s, &vps[2].s);
-						return sr_kemi_lua_return_int(L, ket, ret);
-					} else {
-						LM_ERR("invalid parameters for: %.*s\n",
-								fname->len, fname->s);
-						return app_lua_return_false(L);
-					}
-				} else {
-					LM_ERR("invalid parameters for: %.*s\n",
-							fname->len, fname->s);
-					return app_lua_return_false(L);
-				}
-			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
-				return app_lua_return_false(L);
-			}
-		break;
-		case 4:
-			if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_STR
-					&& ket->ptypes[3]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmssss_f)(ket->func))(env_L->msg,
-						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_STR
-					&& ket->ptypes[3]==SR_KEMIP_INT) {
-				ret = ((sr_kemi_fmsssn_f)(ket->func))(env_L->msg,
-						&vps[0].s, &vps[1].s, &vps[2].s, vps[3].n);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_INT
-					&& ket->ptypes[3]==SR_KEMIP_INT) {
-				ret = ((sr_kemi_fmssnn_f)(ket->func))(env_L->msg,
-						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_INT
-					&& ket->ptypes[2]==SR_KEMIP_INT
-					&& ket->ptypes[3]==SR_KEMIP_INT) {
-				ret = ((sr_kemi_fmsnnn_f)(ket->func))(env_L->msg,
-						&vps[0].s, vps[1].n, vps[2].n, vps[3].n);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_INT
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_STR
-					&& ket->ptypes[3]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmnsss_f)(ket->func))(env_L->msg,
-						vps[0].n, &vps[1].s, &vps[2].s, &vps[3].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_INT
-					&& ket->ptypes[1]==SR_KEMIP_INT
-					&& ket->ptypes[2]==SR_KEMIP_STR
-					&& ket->ptypes[3]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmnnss_f)(ket->func))(env_L->msg,
-						vps[0].n, vps[1].n, &vps[2].s, &vps[3].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_INT
-					&& ket->ptypes[1]==SR_KEMIP_INT
-					&& ket->ptypes[2]==SR_KEMIP_INT
-					&& ket->ptypes[3]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmnnns_f)(ket->func))(env_L->msg,
-						vps[0].n, vps[1].n, vps[2].n, &vps[3].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_INT
-					&& ket->ptypes[1]==SR_KEMIP_INT
-					&& ket->ptypes[2]==SR_KEMIP_INT
-					&& ket->ptypes[3]==SR_KEMIP_INT) {
-				ret = ((sr_kemi_fmnnnn_f)(ket->func))(env_L->msg,
-						vps[0].n, vps[1].n, vps[2].n, vps[3].n);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
-				return app_lua_return_false(L);
-			}
-		break;
-		case 5:
-			if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_STR
-					&& ket->ptypes[3]==SR_KEMIP_STR
-					&& ket->ptypes[4]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmsssss_f)(ket->func))(env_L->msg,
-						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s,
-						&vps[4].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_INT
-					&& ket->ptypes[3]==SR_KEMIP_INT
-					&& ket->ptypes[4]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmssnns_f)(ket->func))(env_L->msg,
-						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n,
-						&vps[4].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-
-			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
-				return app_lua_return_false(L);
-			}
-		break;
-		case 6:
-			if(ket->ptypes[0]==SR_KEMIP_STR
-					&& ket->ptypes[1]==SR_KEMIP_STR
-					&& ket->ptypes[2]==SR_KEMIP_STR
-					&& ket->ptypes[3]==SR_KEMIP_STR
-					&& ket->ptypes[4]==SR_KEMIP_STR
-					&& ket->ptypes[5]==SR_KEMIP_STR) {
-				ret = ((sr_kemi_fmssssss_f)(ket->func))(env_L->msg,
-						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s,
-						&vps[4].s, &vps[5].s);
-				return sr_kemi_lua_return_int(L, ket, ret);
-			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
-				return app_lua_return_false(L);
-			}
-		break;
-		default:
-			LM_ERR("invalid parameters for: %.*s\n",
-					fname->len, fname->s);
-			return app_lua_return_false(L);
-	}
-}
-
-/**
- *
- */
-int sr_kemi_exec_func(lua_State* L, str *mname, int midx, str *fname)
-{
-	int pdelta;
-	sr_kemi_t *ket = NULL;
-	sr_lua_env_t *env_L;
-
-	env_L = sr_lua_env_get();
-
-	if(env_L==NULL || env_L->msg==NULL) {
-		LM_ERR("invalid Lua environment attributes\n");
-		return app_lua_return_false(L);
-	}
-
-	ket = sr_kemi_lookup(mname, midx, fname);
-	if(ket==NULL) {
-		LM_ERR("cannot find function (%d): %.*s.%.*s\n", midx,
-				(mname && mname->len>0)?mname->len:0,
-				(mname && mname->len>0)?mname->s:"",
-				fname->len, fname->s);
-		return app_lua_return_false(L);
-	}
-	if(mname->len<=0) {
-		pdelta = 1;
-	} else {
-		pdelta = 3;
-	}
-	return sr_kemi_lua_exec_func_ex(L, ket, pdelta);
-}
-
-/**
- *
- */
-int sr_kemi_lua_exec_func(lua_State* L, int eidx)
-{
-	sr_kemi_t *ket;
-
-	ket = sr_kemi_lua_export_get(eidx);
-	return sr_kemi_lua_exec_func_ex(L, ket, 0);
-}
-
-/**
- *
- */
-static int sr_kemi_lua_exit (lua_State *L)
-{
-	str *s;
-
-	LM_DBG("script exit call\n");
-	s = sr_kemi_lua_exit_string_get();
-	lua_getglobal(L, "error");
-	lua_pushstring(L, s->s);
-	lua_call(L, 1, 0);
-	return 0;
-}
-
-/**
- *
- */
-static int sr_kemi_lua_drop (lua_State *L)
-{
-	str *s;
-
-	LM_DBG("script drop call\n");
-	sr_kemi_core_set_drop(NULL);
-	s = sr_kemi_lua_exit_string_get();
-	lua_getglobal(L, "error");
-	lua_pushstring(L, s->s);
-	lua_call(L, 1, 0);
-	return 0;
-}
-
-/**
- *
- */
-static const luaL_Reg _sr_kemi_x_Map [] = {
-	{"modf",      lua_sr_modf},
-	{"exit",      sr_kemi_lua_exit},
-	{"drop",      sr_kemi_lua_drop},
-	{NULL, NULL}
-};
-
-/**
- *
- */
-int sr_kemi_KSR_C(lua_State* L)
-{
-	str mname = str_init("");
-	str fname;
-
-	fname.s = (char*)lua_tostring(L, 1);
-	if(fname.s==NULL) {
-		LM_ERR("null function name");
-		return app_lua_return_false(L);
-	}
-	fname.len = strlen(fname.s);
-	LM_DBG("function execution of: %s\n", fname.s);
-	return sr_kemi_exec_func(L, &mname, 0, &fname);
-}
-
-/**
- *
- */
-int sr_kemi_KSR_MOD_C(lua_State* L)
-{
-	str mname;
-	int midx;
-	str fname;
-	mname.s = (char*)lua_tostring(L, 1);
-	midx = lua_tointeger(L, 2);
-	fname.s = (char*)lua_tostring(L, 3);
-	if(mname.s==NULL || fname.s==NULL) {
-		LM_ERR("null params: %p %p\n", mname.s, fname.s);
-		return app_lua_return_false(L);
-	}
-	mname.len = strlen(mname.s);
-	fname.len = strlen(fname.s);
-	LM_DBG("module function execution of: %s.%s (%d)\n",
-			mname.s, fname.s, midx);
-	return sr_kemi_exec_func(L, &mname, midx, &fname);
-}
-
-
-/**
- *
- */
-void lua_sr_kemi_register_core(lua_State *L)
-{
-	int ret;
-
-	lua_register(L, "KSR_C", sr_kemi_KSR_C);
-	lua_register(L, "KSR_MOD_C", sr_kemi_KSR_MOD_C);
-
-	ret = luaL_dostring(L,
-			"KSR = {}\n"
-			"KSR.__index = function (table, key)\n"
-			"  return function (...)\n"
-			"    return KSR_C(key, ...)\n"
-			"  end\n"
-			"end\n"
-			"setmetatable(KSR, KSR)\n"
-		);
-
-	/* special modules - pv.get(...) can return int or str */
-	luaL_openlib(L, "KSR.pv",   _sr_pv_Map,   0);
-	luaL_openlib(L, "KSR.x",   _sr_kemi_x_Map,   0);
-
-	LM_DBG("pushing lua KSR table definition returned %d\n", ret);
-}
-
-/**
- *
- */
-void lua_sr_kemi_register_module(lua_State *L, str *mname, int midx)
-{
-	int ret;
-#define LUA_SR_SBUF_SIZE	1024
-	char sbuf[LUA_SR_SBUF_SIZE];
-
-	ret = snprintf(sbuf, LUA_SR_SBUF_SIZE-1,
-			"KSR.%.*s = {}\n"
-			"KSR.%.*s.__index = function (table, key)\n"
-			"  return function (...)\n"
-			"    return KSR_MOD_C('%.*s', %d, key, ...)\n"
-			"  end\n"
-			"end\n"
-			"setmetatable(KSR.%.*s, KSR.%.*s)\n",
-			mname->len, mname->s,
-			mname->len, mname->s,
-			mname->len, mname->s,
-			midx,
-			mname->len, mname->s,
-			mname->len, mname->s
-		);
-	ret = luaL_dostring(L, sbuf);
-
-	LM_DBG("pushing lua KSR.%.*s table definition returned %d\n",
-			mname->len, mname->s, ret);
-}
-
-/**
- *
- */
-void lua_sr_kemi_register_modules(lua_State *L)
-{
-	int n;
-	int i;
-	sr_kemi_module_t *kmods;
-
-	n = sr_kemi_modules_size_get();
-	kmods = sr_kemi_modules_get();
-
-	for(i=1; i<n; i++) {
-		lua_sr_kemi_register_module(L, &kmods[i].mname, i);
-	}
-}
-
-
-/**
- *
- */
-luaL_Reg *_sr_KSRMethods = NULL;
-
-#define SR_LUA_KSR_MODULES_SIZE	256
-#define SR_LUA_KSR_METHODS_SIZE	(SR_KEMI_LUA_EXPORT_SIZE + SR_LUA_KSR_MODULES_SIZE)
-
-
-/**
- *
- */
-void lua_sr_kemi_register_libs(lua_State *L)
-{
-	luaL_Reg *_sr_crt_KSRMethods = NULL;
-	sr_kemi_module_t *emods = NULL;
-	int emods_size = 0;
-	int i;
-	int k;
-	int n;
-	char mname[128];
-
-#if 0
-	/* dynamic lookup on function name */
-	lua_sr_kemi_register_core(L);
-	lua_sr_kemi_register_modules(L);
-#endif
-
-	_sr_KSRMethods = malloc(SR_LUA_KSR_METHODS_SIZE * sizeof(luaL_Reg));
-	if(_sr_KSRMethods==NULL) {
-		LM_ERR("no more pkg memory\n");
-		return;
-	}
-	memset(_sr_KSRMethods, 0, SR_LUA_KSR_METHODS_SIZE * sizeof(luaL_Reg));
-
-	emods_size = sr_kemi_modules_size_get();
-	emods = sr_kemi_modules_get();
-
-	n = 0;
-	_sr_crt_KSRMethods = _sr_KSRMethods;
-	if(emods_size==0 || emods[0].kexp==NULL) {
-		LM_ERR("no kemi exports registered\n");
-		return;
-	}
-
-	for(i=0; emods[0].kexp[i].func!=NULL; i++) {
-		if(_ksr_app_lua_log_mode & KSR_APP_LUA_LOG_EXPORTS) {
-			LM_DBG("exporting KSR.%s(...)\n", emods[0].kexp[i].fname.s);
-		}
-		_sr_crt_KSRMethods[i].name = emods[0].kexp[i].fname.s;
-		_sr_crt_KSRMethods[i].func =
-			sr_kemi_lua_export_associate(&emods[0].kexp[i]);
-		if(_sr_crt_KSRMethods[i].func == NULL) {
-			LM_ERR("failed to associate kemi function with lua export\n");
-			free(_sr_KSRMethods);
-			_sr_KSRMethods = NULL;
-			return;
-		}
-		n++;
-	}
-
-	luaL_openlib(L, "KSR", _sr_crt_KSRMethods, 0);
-
-	/* special modules - pv.get(...) can return int or str */
-	luaL_openlib(L, "KSR.pv", _sr_pv_Map,     0);
-	luaL_openlib(L, "KSR.x",  _sr_kemi_x_Map, 0);
-
-	/* registered kemi modules */
-	if(emods_size>1) {
-		for(k=1; k<emods_size; k++) {
-			n++;
-			_sr_crt_KSRMethods = _sr_KSRMethods + n;
-			snprintf(mname, 128, "KSR.%s", emods[k].kexp[0].mname.s);
-			for(i=0; emods[k].kexp[i].func!=NULL; i++) {
-				if(_ksr_app_lua_log_mode & KSR_APP_LUA_LOG_EXPORTS) {
-					LM_DBG("exporting %s.%s(...)\n", mname,
-							emods[k].kexp[i].fname.s);
-				}
-				_sr_crt_KSRMethods[i].name = emods[k].kexp[i].fname.s;
-				_sr_crt_KSRMethods[i].func =
-					sr_kemi_lua_export_associate(&emods[k].kexp[i]);
-				if(_sr_crt_KSRMethods[i].func == NULL) {
-					LM_ERR("failed to associate kemi function with func export\n");
-					free(_sr_KSRMethods);
-					_sr_KSRMethods = NULL;
-					return;
-				}
-				n++;
-			}
-			if(!lua_checkstack(L, i+8)) {
-				LM_ERR("not enough Lua stack capacity\n");
-				exit(-1);
-			}
-			luaL_openlib(L, mname, _sr_crt_KSRMethods, 0);
-			if(_ksr_app_lua_log_mode & KSR_APP_LUA_LOG_EXPORTS) {
-				LM_DBG("initializing kemi sub-module: %s (%s) (%d/%d/%d)\n",
-						mname, emods[k].kexp[0].mname.s, i, k, n);
-			}
-		}
-	}
-	LM_DBG("module 'KSR' has been initialized (%d/%d)\n", emods_size, n);
 }

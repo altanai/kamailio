@@ -337,6 +337,7 @@ extern char *default_routename;
 %token DNS_TLS_PREF
 %token DNS_SCTP_PREF
 %token DNS_RETR_TIME
+%token DNS_SLOW_QUERY_MS
 %token DNS_RETR_NO
 %token DNS_SERVERS_NO
 %token DNS_USE_SEARCH
@@ -356,6 +357,7 @@ extern char *default_routename;
 
 /* ipv6 auto bind */
 %token AUTO_BIND_IPV6
+%token BIND_IPV6_LINK_LOCAL
 
 /*blacklist*/
 %token DST_BLST_INIT
@@ -404,6 +406,8 @@ extern char *default_routename;
 %token MHOMED
 %token DISABLE_TCP
 %token TCP_ACCEPT_ALIASES
+%token TCP_ACCEPT_UNIQUE
+%token TCP_CONNECTION_MATCH
 %token TCP_CHILDREN
 %token TCP_CONNECT_TIMEOUT
 %token TCP_SEND_TIMEOUT
@@ -488,12 +492,15 @@ extern char *default_routename;
 %token ONSEND_ROUTE_CALLBACK
 %token REPLY_ROUTE_CALLBACK
 %token EVENT_ROUTE_CALLBACK
+%token RECEIVED_ROUTE_CALLBACK
+%token RECEIVED_ROUTE_MODE
 %token MAX_RECURSIVE_LEVEL
 %token MAX_BRANCHES_PARAM
 %token LATENCY_CFG_LOG
 %token LATENCY_LOG
 %token LATENCY_LIMIT_DB
 %token LATENCY_LIMIT_ACTION
+%token LATENCY_LIMIT_CFG
 %token MSG_TIME
 %token ONSEND_RT_REPLY
 
@@ -827,6 +834,8 @@ assign_stm:
 	| DNS_SCTP_PREF error { yyerror("number expected"); }
 	| DNS_RETR_TIME EQUAL NUMBER   { default_core_cfg.dns_retr_time=$3; }
 	| DNS_RETR_TIME error { yyerror("number expected"); }
+	| DNS_SLOW_QUERY_MS EQUAL NUMBER   { default_core_cfg.dns_slow_query_ms=$3; }
+	| DNS_SLOW_QUERY_MS error { yyerror("number expected"); }
 	| DNS_RETR_NO EQUAL NUMBER   { default_core_cfg.dns_retr_no=$3; }
 	| DNS_RETR_NO error { yyerror("number expected"); }
 	| DNS_SERVERS_NO EQUAL NUMBER   { default_core_cfg.dns_servers_no=$3; }
@@ -861,6 +870,8 @@ assign_stm:
 	| DNS_CACHE_REC_PREF error { yyerror("boolean value expected"); }
 	| AUTO_BIND_IPV6 EQUAL NUMBER {IF_AUTO_BIND_IPV6(auto_bind_ipv6 = $3);}
 	| AUTO_BIND_IPV6 error { yyerror("boolean value expected"); }
+	| BIND_IPV6_LINK_LOCAL EQUAL NUMBER {sr_bind_ipv6_link_local = $3;}
+	| BIND_IPV6_LINK_LOCAL error { yyerror("boolean value expected"); }
 	| DST_BLST_INIT EQUAL NUMBER   { IF_DST_BLACKLIST(dst_blacklist_init=$3); }
 	| DST_BLST_INIT error { yyerror("boolean value expected"); }
 	| USE_DST_BLST EQUAL NUMBER {
@@ -896,11 +907,6 @@ assign_stm:
 	| IP_FREE_BIND EQUAL intno { _sr_ip_free_bind=$3; }
 	| IP_FREE_BIND EQUAL error { yyerror("int value expected"); }
 	| PORT EQUAL NUMBER   { port_no=$3; }
-	| STAT EQUAL STRING {
-		#ifdef STATS
-				stat_file=$3;
-		#endif
-	}
 	| MAXBUFFER EQUAL NUMBER { maxbuffer=$3; }
 	| MAXBUFFER EQUAL error { yyerror("number expected"); }
     | SQL_BUFFER_SIZE EQUAL NUMBER { sql_buffer_size=$3; }
@@ -985,6 +991,22 @@ assign_stm:
 		#endif
 	}
 	| TCP_ACCEPT_ALIASES EQUAL error { yyerror("boolean value expected"); }
+	| TCP_ACCEPT_UNIQUE EQUAL NUMBER {
+		#ifdef USE_TCP
+			tcp_accept_unique=$3;
+		#else
+			warn("tcp support not compiled in");
+		#endif
+	}
+	| TCP_ACCEPT_UNIQUE EQUAL error { yyerror("number expected"); }
+	| TCP_CONNECTION_MATCH EQUAL NUMBER {
+		#ifdef USE_TCP
+			tcp_connection_match=$3;
+		#else
+			warn("tcp support not compiled in");
+		#endif
+	}
+	| TCP_CONNECTION_MATCH EQUAL error { yyerror("number expected"); }
 	| TCP_CHILDREN EQUAL NUMBER {
 		#ifdef USE_TCP
 			tcp_cfg_children_no=$3;
@@ -1442,6 +1464,19 @@ assign_stm:
 		}
 		free_socket_id_lst($3);
 	}
+	| LISTEN EQUAL id_lst ADVERTISE listen_id {
+		for(lst_tmp=$3; lst_tmp; lst_tmp=lst_tmp->next) {
+			if (add_listen_advertise_iface(	lst_tmp->addr_lst->name,
+									lst_tmp->addr_lst->next,
+									lst_tmp->port, lst_tmp->proto,
+									$5, 0,
+									lst_tmp->flags)!=0) {
+				LM_CRIT("cfg. parser: failed to add listen address\n");
+				break;
+			}
+		}
+		free_socket_id_lst($3);
+	}
 	| LISTEN EQUAL  error { yyerror("ip address, interface name or"
 									" hostname expected"); }
 	| ALIAS EQUAL  id_lst {
@@ -1624,6 +1659,18 @@ assign_stm:
 			}
 		}
 	| KEMI DOT EVENT_ROUTE_CALLBACK EQUAL error { yyerror("string expected"); }
+	| KEMI DOT RECEIVED_ROUTE_CALLBACK EQUAL STRING {
+			kemi_received_route_callback.s = $5;
+			kemi_received_route_callback.len = strlen($5);
+			if(kemi_received_route_callback.len==4
+					&& strcasecmp(kemi_received_route_callback.s, "none")==0) {
+				kemi_received_route_callback.s = "";
+				kemi_received_route_callback.len = 0;
+			}
+		}
+	| KEMI DOT RECEIVED_ROUTE_CALLBACK EQUAL error { yyerror("string expected"); }
+    | RECEIVED_ROUTE_MODE EQUAL intno { ksr_evrt_received_mode=$3; }
+	| RECEIVED_ROUTE_MODE EQUAL error  { yyerror("number  expected"); }
     | MAX_RECURSIVE_LEVEL EQUAL NUMBER { set_max_recursive_level($3); }
     | MAX_BRANCHES_PARAM EQUAL NUMBER { sr_dst_max_branches = $3; }
     | LATENCY_LOG EQUAL intno { default_core_cfg.latency_log=$3; }
@@ -1634,6 +1681,8 @@ assign_stm:
 	| LATENCY_LIMIT_DB EQUAL error  { yyerror("number  expected"); }
     | LATENCY_LIMIT_ACTION EQUAL NUMBER { default_core_cfg.latency_limit_action=$3; }
 	| LATENCY_LIMIT_ACTION EQUAL error  { yyerror("number  expected"); }
+    | LATENCY_LIMIT_CFG EQUAL NUMBER { default_core_cfg.latency_limit_cfg=$3; }
+	| LATENCY_LIMIT_CFG EQUAL error  { yyerror("number  expected"); }
     | MSG_TIME EQUAL NUMBER { sr_msg_time=$3; }
 	| MSG_TIME EQUAL error  { yyerror("number  expected"); }
 	| ONSEND_RT_REPLY EQUAL NUMBER { onsend_route_reply=$3; }

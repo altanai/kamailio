@@ -1,5 +1,8 @@
-/**
- * Copyright (C) 2010-2016 Daniel-Constantin Mierla (asipto.com)
+/*
+ * lost module functions
+ *
+ * Copyright (C) 2019 Wolfgang Kampichler
+ * DEC112, FREQUENTIS AG
  *
  * This file is part of Kamailio, a free SIP server.
  *
@@ -10,7 +13,7 @@
  *
  * Kamailio is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -19,14 +22,19 @@
  *
  */
 
-#ifndef _APP_LUA_EXP_H_
-#define _APP_LUA_EXP_H_
+/*!
+ * \file
+ * \brief Kamailio lost :: functions
+ * \ingroup lost
+ * Module: \ref lost
+ */
 
-#include <lua.h>
+#ifndef LOST_FUNCTIONS_H
+#define LOST_FUNCTIONS_H
 
-int lua_sr_exp_register_mod(char *mname);
-int lua_sr_exp_init_mod(void);
-void lua_sr_exp_openlibs(lua_State *L);
+int lost_function_held(
+		struct sip_msg *, char *, char *, char *, char *, char *);
+int lost_function(
+		struct sip_msg *, char *, char *, char *, char *, char *, char *);
 
 #endif
-

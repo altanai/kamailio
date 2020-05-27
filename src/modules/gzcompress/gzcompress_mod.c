@@ -1,6 +1,4 @@
 /**
- * $Id$
- *
  * Copyright (C) 2013 Daniel-Constantin Mierla (asipto.com)
  *
  * This file is part of kamailio, a free SIP server.
@@ -340,6 +338,7 @@ int gzc_msg_sent(sr_event_param_t *evp)
 	unsigned long olen;
 	unsigned long nlen;
 	int ret;
+	str nbuf = STR_NULL;
 
 	obuf = (str*)evp->data;
 	memset(&msg, 0, sizeof(sip_msg_t));
@@ -385,10 +384,17 @@ int gzc_msg_sent(sr_event_param_t *evp)
 		goto done;
 	}
 
-	obuf->s = gzc_msg_update(&msg, (unsigned int*)&obuf->len);
+	nbuf.s = gzc_msg_update(&msg, (unsigned int*)&nbuf.len);
+	if(nbuf.s!=NULL) {
+		LM_DBG("new outbound buffer generated\n");
+		pkg_free(obuf->s);
+		obuf->s = nbuf.s;
+		obuf->len = nbuf.len;
+	} else {
+		LM_ERR("failed to generate new outbound buffer\n");
+	}
 
 done:
 	free_sip_msg(&msg);
 	return 0;
 }
-

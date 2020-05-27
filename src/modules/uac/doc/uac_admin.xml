@@ -54,6 +54,16 @@
 				SIP request. Try to save needed changes in a pseudovariable and
 				apply them once.
 			</para>
+			<para>
+				There is also a limitation regarding the use of the
+				<quote>msg_apply_changes()</quote> function together with the
+				<quote>uac_replace_*</quote> functions for messages that are
+				loose-routed (e.g. Re-INVITE requests). In this case you need
+				to call the <quote>loose_route()</quote> function after the
+				replace and msg_apply_changes. Otherwise Kamailio can create
+				replies with wrong From/To headers (e.g. for the 100 - Trying
+				reply in the Re-INVITE example).
+			</para>
 			</listitem>
 		</itemizedlist>
 	</section>
@@ -316,9 +326,9 @@ modparam("uac","credential","username:domain:password")
 			<para><emphasis>
 				If you define it, you also need to define
 				<quote>auth_username_avp</quote>
-				(<xref linkend="uac.p.auth-username-avp-id"/>) and
-				<quote>auth_username_avp</quote>
-				(<xref linkend="uac.p.auth-password-avp-id"/>).
+				(<xref linkend="uac.p.auth_username_avp"/>) and
+				<quote>auth_password_avp</quote>
+				(<xref linkend="uac.p.auth_password_avp"/>).
 			</emphasis></para>
 			<example>
 				<title>Set <varname>auth_realm_avp</varname> parameter</title>
@@ -338,9 +348,9 @@ modparam("uac","auth_realm_avp","$avp(i:10)")
 			<para><emphasis>
 				If you define it, you also need to define
 				<quote>auth_realm_avp</quote>
-				(<xref linkend="uac.p.auth-realm-avp-id"/>) and
-				<quote>auth_username_avp</quote>
-				(<xref linkend="uac.p.auth-password-avp-id"/>).
+				(<xref linkend="uac.p.auth_realm_avp"/>) and
+				<quote>auth_password_avp</quote>
+				(<xref linkend="uac.p.auth_password_avp"/>).
 			</emphasis></para>
 			<example>
 				<title>Set <varname>auth_username_avp</varname> parameter</title>
@@ -359,10 +369,10 @@ modparam("uac","auth_username_avp","$avp(i:11)")
 			</para>
 			<para><emphasis>
 				If you define it, you also need to define
-				<quote>auth_password_avp</quote>
-				(<xref linkend="uac.p.auth-password-avp-id"/>) and
+				<quote>auth_realm_avp</quote>
+				(<xref linkend="uac.p.auth_realm_avp"/>) and
 				<quote>auth_username_avp</quote>
-				(<xref linkend="uac.p.auth-password-avp-id"/>).
+				(<xref linkend="uac.p.auth_username_avp"/>).
 			</emphasis></para>
 			<example>
 				<title>Set <varname>auth_password_avp</varname> parameter</title>
@@ -527,6 +537,61 @@ modparam("uac", "reg_active", 0)
 			</example>
 		</section>
 
+		<section id="uac.p.reg_gc_interval">
+			<title><varname>reg_gc_interval</varname> (int)</title>
+			<para>
+			Timer interval (in seconds) at which remote registrations are cleaned
+			up in case of failure or removed. When setting it take in consideration
+			the maximum value for retransmission timeout, this param should be greater
+			than it. This value also impacts how ofter the reload for remote
+			registrations table can be executed -- the RPC command will fail if
+			executed in less than reg_gc_interval value since the last reload.
+			</para>
+			<para>
+				<emphasis>
+				The default value is 150 seconds.
+				</emphasis>
+			</para>
+
+			<example>
+				<title>Set <varname>reg_gc_interval</varname> parameter</title>
+				<programlisting format="linespecific">
+...
+modparam("uac", "reg_gc_interval", 60)
+...
+				</programlisting>
+			</example>
+		</section>
+	<section id="uac.p.default_socket">
+		<title><varname>default_socket</varname> (str)</title>
+		<para>
+			Default socket to be used for generating registration requests and sending
+			requests with the function uac_req_send(). Useful e.g. when several public
+			interfaces are available.
+		</para>
+		<para>
+			A send socket in the $uac_reg variable used together with the uac_req_send()
+			function will override this parameter. A socket value in the uacreg table will
+			also override the parameter for this particular entry.
+		</para>
+		<para>
+		<emphasis>
+			By default no default socket is defined, the send socket is choosen from the
+			<quote>tm</quote> module when the requests is send out.
+		</emphasis>
+		</para>
+		<para>If you want to force a certain TCP port (e.g. 5060), you will need to set
+			the <emphasis>tcp_reuse_port=yes</emphasis> core parameter as well.
+		</para>
+		<example>
+		<title>Set the <quote>default_socket</quote> parameter</title>
+ <programlisting format="linespecific">
+ ...
+ modparam("uac", "default_socket", "udp:192.168.0.125:5060")
+ ...
+ </programlisting>
+		</example>
+	</section>
 
 	</section>
 
@@ -915,7 +980,7 @@ if(uac_reg_request_to("$fU", 0))
 failure_route[REMOTE_AUTH] {
 	if ($T_reply_code == 401 or $T_reply_code == 407) {
 		xlog("L_NOTICE", "Remote asked for authentication");
-		uac_auth()
+		uac_auth();
 	}
 }
 ...
@@ -1103,6 +1168,7 @@ event_route[uac:reply] {
 			<programlisting format="linespecific">
 ...
    kamcmd uac.reg_info l_uuid account123
+   kamcmd uac.reg_info l_uuid s:12345678
 ...
 			</programlisting>
 		</example>
@@ -1124,6 +1190,7 @@ event_route[uac:reply] {
 			<programlisting format="linespecific">
 ...
    kamcmd uac.reg_enable l_uuid account123
+   kamcmd uac.reg_enable l_uuid s:12345678
 ...
 			</programlisting>
 		</example>
@@ -1145,6 +1212,7 @@ event_route[uac:reply] {
 			<programlisting format="linespecific">
 ...
    kamcmd uac.reg_disable l_uuid account123
+   kamcmd uac.reg_disable l_uuid s:12345678
 ...
 			</programlisting>
 		</example>
@@ -1155,7 +1223,10 @@ event_route[uac:reply] {
 				<function moreinfo="none">uac.reg_reload</function>
 			</title>
 		<para>
-			Reload the records from database for remote registrations.
+			Reload the records from database for remote registrations. There is
+			a limit of how often the reload command can be executed, by default
+			is 150 seconds between reloads -- see the reg_gc_interval parameter
+			for more details.
 		</para>
 		<example>
 		<title><function>uac.reg_reload</function> usage</title>
@@ -1181,6 +1252,7 @@ event_route[uac:reply] {
 			<programlisting format="linespecific">
 ...
    kamcmd uac.reg_refresh account123
+   kamcmd uac.reg_refresh s:12345678
 ...
 			</programlisting>
 		</example>
@@ -1206,6 +1278,46 @@ event_route[uac:reply] {
 		</example>
 		</section>
 
+		<section id="uac.r.uac.reg_add">
+			<title>
+				<function moreinfo="none">uac.reg_add</function>
+			</title>
+		<para>
+		Add a new UAC remote registration record. If one with the same
+		unique id is found, it is deleted.
+		</para>
+		<para>
+		The parameters are:
+		<itemizedlist>
+			<listitem><para>l_uuid</para></listitem>
+			<listitem><para>l_username</para></listitem>
+			<listitem><para>l_domain</para></listitem>
+			<listitem><para>r_username</para></listitem>
+			<listitem><para>r_domain</para></listitem>
+			<listitem><para>realm</para></listitem>
+			<listitem><para>auth_username</para></listitem>
+			<listitem><para>auth_password</para></listitem>
+			<listitem><para>auth_ha1</para></listitem>
+			<listitem><para>auth_proxy</para></listitem>
+			<listitem><para>expires</para></listitem>
+			<listitem><para>flags</para></listitem>
+			<listitem><para>reg_delay</para></listitem>
+			<listitem><para>socket</para></listitem>
+		</itemizedlist>
+		</para>
+		<para>
+		Use a dot (.) if no value should be set for auth_password or auth_ha1.
+		</para>
+
+		<example>
+		<title><function>uac.reg_add</function> usage</title>
+			<programlisting format="linespecific">
+...
+   kamcmd uac.reg_add ...
+...
+			</programlisting>
+		</example>
+	</section>
 	</section>
 
 	<section>
@@ -1247,7 +1359,7 @@ event_route[uac:reply] {
 		</itemizedlist>
 		<itemizedlist>
 			<listitem><para>
-			<emphasis>realm</emphasis> - remote relam, e.g.,:
+			<emphasis>realm</emphasis> - remote realm, e.g.,:
 			sipprovider.com
 			</para></listitem>
 		</itemizedlist>
@@ -1259,8 +1371,14 @@ event_route[uac:reply] {
 		</itemizedlist>
 		<itemizedlist>
 			<listitem><para>
-			<emphasis>auth_password</emphasis> - authentication password,
-			e.g.,: xxxxxx
+			<emphasis>auth_password</emphasis> - authentication password in
+			clear text, e.g.,: xxxxxx
+			</para></listitem>
+		</itemizedlist>
+		<itemizedlist>
+			<listitem><para>
+			<emphasis>auth_ha1</emphasis> - hashed (HA1) authentication password,
+			it has priority over auth_password.
 			</para></listitem>
 		</itemizedlist>
 		<itemizedlist>
@@ -1285,6 +1403,13 @@ event_route[uac:reply] {
 			<emphasis>reg_delay</emphasis> - delay initial registration with at least reg_delay seconds, e.g.,: 3
 			</para></listitem>
 		</itemizedlist>
+		<itemizedlist>
+			<listitem><para>
+			<emphasis>socket</emphasis> - Used socket for sending out registration requests,
+			e.g.:, udp:192.168.0.125:5060
+			</para></listitem>
+		</itemizedlist>
+
 		<para>
 		The module takes care of sending REGISTER and refresh registrations
 		before they expire.

@@ -42,6 +42,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <ifaddrs.h>
+#include <netdb.h>
 #ifdef HAVE_SYS_SOCKIO_H
 #include <sys/sockio.h>
 #endif
@@ -99,6 +100,73 @@
 #define addr_info_listadd sock_listadd
 #define addr_info_listins sock_listins
 #define addr_info_listrm sock_listrm
+
+/**
+ * return the scope for IPv6 interface matching the ipval parameter
+ * - needed for binding to link local IPv6 addresses
+ */
+unsigned int ipv6_get_netif_scope(char *ipval)
+{
+	struct ifaddrs *netiflist = NULL;
+	struct ifaddrs *netif = NULL;
+	char ipaddr[NI_MAXHOST];
+	unsigned int iscope = 0;
+	int i = 0;
+	int r = 0;
+	ip_addr_t *ipa = NULL;
+	ip_addr_t vaddr;
+	str ips;
+
+	ips.s = ipval;
+	ips.len = strlen(ipval);
+
+	ipa = str2ip6(&ips);
+	if(ipa==NULL) {
+		LM_ERR("could not parse ipv6 address: %s\n", ipval);
+		return 0;
+	}
+	memcpy(&vaddr, ipa, sizeof(ip_addr_t));
+	ipa = NULL;
+
+	/* walk over the list of all network interface addresses */
+	if(getifaddrs(&netiflist)!=0) {
+		LM_ERR("failed to get network interfaces - errno: %d\n", errno);
+		return 0;
+	}
+	for(netif = netiflist; netif; netif = netif->ifa_next) {
+		/* only active and ipv6 */
+		if (netif->ifa_addr && (netif->ifa_flags & IFF_UP)
+					&& netif->ifa_addr->sa_family==AF_INET6) {
+			r = getnameinfo(netif->ifa_addr, sizeof(struct sockaddr_in6),
+					ipaddr, sizeof(ipaddr), NULL, 0, NI_NUMERICHOST);
+			if(r!=0) {
+				LM_ERR("failed to get the name info - ret: %d\n", r);
+				goto done;
+			}
+			/* strip the interface name after */
+			for(i=0; ipaddr[i]; i++) {
+				if(ipaddr[i]=='%') {
+					ipaddr[i]='\0';
+					break;
+				}
+			}
+			ips.s = ipaddr;
+			ips.len = strlen(ipaddr);
+			ipa = str2ip6(&ips);
+			if(ipa!=NULL) {
+				/* if the ips match, get scope index from interface name */
+				if(ip_addr_cmp(&vaddr, ipa)) {
+					iscope=if_nametoindex(netif->ifa_name);
+					goto done;
+				}
+			}
+		}
+	}
+
+done:
+	freeifaddrs(netiflist);
+	return iscope;
+}
 
 inline static void addr_info_list_ins_lst(struct addr_info* lst,
 										struct addr_info* after)
@@ -431,7 +499,7 @@ static int fix_sock_str(struct socket_info* si)
 	si->sock_str.len = len;
 	if(si->useinfo.name.s!=NULL)
 	{
-		len = MAX_SOCKET_STR;
+		len = MAX_SOCKET_ADVERTISE_STR;
 
 		if (si->useinfo.sock_str.s) pkg_free(si->useinfo.sock_str.s);
 
@@ -999,7 +1067,6 @@ static int build_iface_list(void)
 		struct rtgenmsg g;
 	} req;
 
-	int seq = 0;
 	int rtn = 0;
 	struct nlmsghdr*  nlp;
 	struct ifaddrmsg *ifi;
@@ -1087,6 +1154,7 @@ static int build_iface_list(void)
 			entry->ifa_flags = ifi->ifa_flags;
             is_link_local = 0;
 
+			name[0] = '\0';
 			for(;RTA_OK(rtap, rtl);rtap=RTA_NEXT(rtap,rtl)){
 				switch(rtap->rta_type){
 					case IFA_ADDRESS:
@@ -1119,12 +1187,16 @@ static int build_iface_list(void)
 				}
 			}
 			if(is_link_local) {
-				pkg_free(entry);
-				continue;    /* link local addresses are not bindable */
+				if(sr_bind_ipv6_link_local==0) {
+					/* skip - link local addresses are not bindable without scope */
+					pkg_free(entry);
+					continue;
+				}
 			}
 
-			if(strlen(ifaces[index].name)==0)
+			if(strlen(ifaces[index].name)==0 && strlen(name)>0) {
 				strncpy(ifaces[index].name, name, MAX_IF_LEN-1);
+			}
 
 			ifaces[index].index = index;
 

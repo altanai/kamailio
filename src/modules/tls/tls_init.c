@@ -627,7 +627,13 @@ int tls_mod_pre_init_h(void)
 		return 0;
 	}
 	LM_DBG("preparing tls env for modules initialization\n");
+#if OPENSSL_VERSION_NUMBER >= 0x010100000L && !defined(LIBRESSL_VERSION_NUMBER)
+	LM_DBG("preparing tls env for modules initialization (libssl >=1.1)\n");
+	OPENSSL_init_ssl(0, NULL);
+#else
+	LM_DBG("preparing tls env for modules initialization (libssl <=1.0)\n");
 	SSL_library_init();
+#endif
 	SSL_load_error_strings();
 	tls_mod_preinitialized=1;
 	return 0;
@@ -773,7 +779,7 @@ int init_tls_h(void)
 		low_mem_threshold2*=1024; /* KB */
 	if ((low_mem_threshold1==0) || (low_mem_threshold2==0))
 	 LM_WARN("tls: openssl bug #1491 (crash/mem leaks on low memory)"
-				" workarround disabled\n");
+				" workaround disabled\n");
 	else
 		LM_WARN("openssl bug #1491 (crash/mem leaks on low memory)"
 				" workaround enabled (on low memory tls operations will fail"

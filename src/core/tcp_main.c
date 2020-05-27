@@ -50,6 +50,7 @@
 #include <sys/uio.h>  /* writev*/
 #include <netdb.h>
 #include <stdlib.h> /*exit() */
+#include <stdint.h> /* UINT32_MAX */
 
 #include <unistd.h>
 
@@ -157,6 +158,9 @@ enum poll_types tcp_poll_method=0; /* by default choose the best method */
 int tcp_main_max_fd_no=0;
 int tcp_max_connections=DEFAULT_TCP_MAX_CONNECTIONS;
 int tls_max_connections=DEFAULT_TLS_MAX_CONNECTIONS;
+int tcp_accept_unique=0;
+
+int tcp_connection_match=TCPCONN_MATCH_DEFAULT;
 
 static union sockaddr_union tcp_source_ipv4_addr; /* saved bind/srv v4 addr. */
 static union sockaddr_union* tcp_source_ipv4=0;
@@ -642,9 +646,10 @@ inline static int _wbufq_add(struct  tcp_connection* c, const char* data,
 	if (unlikely(q->last==0)){
 		wb_size=MAX_unsigned(cfg_get(tcp, tcp_cfg, wq_blk_size), size);
 		wb=shm_malloc(sizeof(*wb)+wb_size-1);
-		if (unlikely(wb==0))
-		        SHM_MEM_ERROR;
+		if (unlikely(wb==0)) {
+			SHM_MEM_ERROR;
 			goto error;
+		}
 		wb->b_size=wb_size;
 		wb->next=0;
 		q->last=wb;
@@ -664,9 +669,10 @@ inline static int _wbufq_add(struct  tcp_connection* c, const char* data,
 		if (last_free==0){
 			wb_size=MAX_unsigned(cfg_get(tcp, tcp_cfg, wq_blk_size), size);
 			wb=shm_malloc(sizeof(*wb)+wb_size-1);
-			if (unlikely(wb==0))
-			        SHM_MEM_ERROR;
+			if (unlikely(wb==0)) {
+				SHM_MEM_ERROR;
 				goto error;
+			}
 			wb->b_size=wb_size;
 			wb->next=0;
 			q->last->next=wb;
@@ -724,9 +730,10 @@ inline static int _wbufq_insert(struct  tcp_connection* c, const char* data,
 	}else{
 		/* create a size bytes block directly */
 		wb=shm_malloc(sizeof(*wb)+size-1);
-		if (unlikely(wb==0))
-		        SHM_MEM_ERROR;
+		if (unlikely(wb==0)) {
+			SHM_MEM_ERROR;
 			goto error;
+		}
 		wb->b_size=size;
 		/* insert it */
 		wb->next=q->first;
@@ -1366,18 +1373,31 @@ again:
 	su2ip_addr(&ip, &my_name);
 find_socket:
 #ifdef USE_TLS
-	if (unlikely(type==PROTO_TLS))
+	if (unlikely(type==PROTO_TLS)) {
 		*res_si=find_si(&ip, 0, PROTO_TLS);
-	else
-#endif
+	} else {
 		*res_si=find_si(&ip, 0, PROTO_TCP);
-	
+	}
+#else
+	*res_si=find_si(&ip, 0, PROTO_TCP);
+#endif
+
 	if (unlikely(*res_si==0)){
 		LM_WARN("%s: could not find corresponding"
 				" listening socket for %s, using default...\n",
 					su2a(server, sizeof(*server)), ip_addr2a(&ip));
+#ifdef USE_TLS
+		if (unlikely(type==PROTO_TLS)) {
+			if (server->s.sa_family==AF_INET) *res_si=sendipv4_tls;
+			else *res_si=sendipv6_tls;
+		} else {
+			if (server->s.sa_family==AF_INET) *res_si=sendipv4_tcp;
+			else *res_si=sendipv6_tcp;
+		}
+#else
 		if (server->s.sa_family==AF_INET) *res_si=sendipv4_tcp;
 		else *res_si=sendipv6_tcp;
+#endif
 	}
 	*res_local_addr=*from;
 	return s;
@@ -1617,7 +1637,7 @@ struct tcp_connection* _tcpconn_find(int id, struct ip_addr* ip, int port,
 	int is_local_ip_any;
 	
 #ifdef EXTRA_DEBUG
-	LM_DBG("%d  port %d\n",id, port);
+	LM_DBG("%d  port %d\n", id, port);
 	if (ip) print_ip("tcpconn_find: ip ", ip, "\n");
 #endif
 	if (likely(id)){
@@ -1627,7 +1647,10 @@ struct tcp_connection* _tcpconn_find(int id, struct ip_addr* ip, int port,
 			LM_DBG("c=%p, c->id=%d, port=%d\n", c, c->id, c->rcv.src_port);
 			print_ip("ip=", &c->rcv.src_ip, "\n");
 #endif
-			if ((id==c->id)&&(c->state!=S_CONN_BAD)) return c;
+			if ((id==c->id)&&(c->state!=S_CONN_BAD)) {
+				LM_DBG("found connection by id: %d\n", id);
+				return c;
+			}
 		}
 	}else if (likely(ip)){
 		hash=tcp_addr_hash(ip, port, l_ip, l_port);
@@ -1643,30 +1666,52 @@ struct tcp_connection* _tcpconn_find(int id, struct ip_addr* ip, int port,
 					(ip_addr_cmp(ip, &a->parent->rcv.src_ip)) &&
 					(is_local_ip_any ||
 						ip_addr_cmp(l_ip, &a->parent->rcv.dst_ip))
-				)
+			   ) {
+				LM_DBG("found connection by peer address (id: %d)\n",
+						a->parent->id);
 				return a->parent;
+			}
 		}
 	}
 	return 0;
 }
 
 
+/**
+ * find if a tcp connection exits by id or remote+local address/port
+ * - return: 1 if found; 0 if not found
+ */
+int tcpconn_exists(int conn_id, ip_addr_t* peer_ip, int peer_port,
+						ip_addr_t* local_ip, int local_port)
+{
+	tcp_connection_t* c;
 
-/* _tcpconn_find with locks and timeout
- * local_addr contains the desired local ip:port. If null any local address 
- * will be used.  IN*ADDR_ANY or 0 port are wild cards.
+	TCPCONN_LOCK;
+	c=_tcpconn_find(conn_id, peer_ip, peer_port, local_ip, local_port);
+	TCPCONN_UNLOCK;
+	if (c) {
+		return 1;
+	}
+	return 0;
+
+}
+
+/* TCP connection find with locks and timeout
+ * - local_addr contains the desired local ip:port. If null any local address
+ * will be used. IN*ADDR_ANY or 0 port are wild cards.
+ * - try_local_port makes the search use it first, instead of port from local_addr
  * If found, the connection's reference counter will be incremented, you might
  * want to decrement it after use.
  */
-struct tcp_connection* tcpconn_get(int id, struct ip_addr* ip, int port,
-									union sockaddr_union* local_addr,
-									ticks_t timeout)
+struct tcp_connection* tcpconn_lookup(int id, struct ip_addr* ip, int port,
+		union sockaddr_union* local_addr, int try_local_port, ticks_t timeout)
 {
 	struct tcp_connection* c;
 	struct ip_addr local_ip;
 	int local_port;
-	
+
 	local_port=0;
+	c = NULL;
 	if (likely(ip)){
 		if (unlikely(local_addr)){
 			su2ip_addr(&local_ip, local_addr);
@@ -1677,8 +1722,13 @@ struct tcp_connection* tcpconn_get(int id, struct ip_addr* ip, int port,
 		}
 	}
 	TCPCONN_LOCK;
-	c=_tcpconn_find(id, ip, port, &local_ip, local_port);
-	if (likely(c)){ 
+	if(likely(try_local_port!=0) && likely(local_port==0)) {
+		c=_tcpconn_find(id, ip, port, &local_ip, try_local_port);
+	}
+	if(unlikely(c==NULL)) {
+		c=_tcpconn_find(id, ip, port, &local_ip, local_port);
+	}
+	if (likely(c)) {
 			atomic_inc(&c->refcnt);
 			/* update the timeout only if the connection is not handled
 			 * by a tcp reader _and_the timeout is non-zero  (the tcp
@@ -1692,6 +1742,18 @@ struct tcp_connection* tcpconn_get(int id, struct ip_addr* ip, int port,
 	return c;
 }
 
+/* TCP connection find with locks and timeout
+ * - local_addr contains the desired local ip:port. If null any local address
+ * will be used.  IN*ADDR_ANY or 0 port are wild cards.
+ * If found, the connection's reference counter will be incremented, you might
+ * want to decrement it after use.
+ */
+struct tcp_connection* tcpconn_get(int id, struct ip_addr* ip, int port,
+									union sockaddr_union* local_addr,
+									ticks_t timeout)
+{
+	return tcpconn_lookup(id, ip, port, local_addr, 0, timeout);
+}
 
 
 /* add c->dst:port, local_addr as an alias for the "id" connection, 
@@ -1931,6 +1993,7 @@ int tcp_send(struct dest_info* dst, union sockaddr_union* from,
 	long response[2];
 	int n;
 	ticks_t con_lifetime;
+	int try_local_port;
 #ifdef USE_TLS
 	const char* rest_buf;
 	const char* t_buf;
@@ -1939,11 +2002,21 @@ int tcp_send(struct dest_info* dst, union sockaddr_union* from,
 	snd_flags_t t_send_flags;
 #endif /* USE_TLS */
 
+	if(unlikely(dst==NULL)) {
+		LM_ERR("no destination address provided\n");
+		return -1;
+	}
+
 	port=su_getport(&dst->to);
+	try_local_port = (dst->send_sock)?dst->send_sock->port_no:0;
 	con_lifetime=cfg_get(tcp, tcp_cfg, con_lifetime);
 	if (likely(port)){
 		su2ip_addr(&ip, &dst->to);
-		c=tcpconn_get(dst->id, &ip, port, from, con_lifetime);
+		if(tcp_connection_match==TCPCONN_MATCH_STRICT) {
+			c=tcpconn_lookup(dst->id, &ip, port, from, try_local_port, con_lifetime);
+		} else {
+			c=tcpconn_get(dst->id, &ip, port, from, con_lifetime);
+		}
 	}else if (likely(dst->id)){
 		c=tcpconn_get(dst->id, 0, 0, 0, con_lifetime);
 	}else{
@@ -1955,7 +2028,11 @@ int tcp_send(struct dest_info* dst, union sockaddr_union* from,
 		if (unlikely(c==0)) {
 			if (likely(port)){
 				/* try again w/o id */
-				c=tcpconn_get(0, &ip, port, from, con_lifetime);
+				if(tcp_connection_match==TCPCONN_MATCH_STRICT) {
+					c=tcpconn_lookup(dst->id, &ip, port, from, try_local_port, con_lifetime);
+				} else {
+					c=tcpconn_get(0, &ip, port, from, con_lifetime);
+				}
 			}else{
 				LM_ERR("id %d not found, dropping\n", dst->id);
 				return -1;
@@ -3037,6 +3114,11 @@ int tcp_init(struct socket_info* sock_info)
 			LM_WARN("setsockopt v6 tos: %s (%d)\n", strerror(errno), tos);
 			/* continue since this is not critical */
 		}
+		if(sr_bind_ipv6_link_local!=0) {
+			LM_INFO("setting scope of %s\n", sock_info->address_str.s);
+			addr->sin6.sin6_scope_id =
+				ipv6_get_netif_scope(sock_info->address_str.s);
+		}
 	}
 
 #if defined(IP_FREEBIND)
@@ -3476,7 +3558,7 @@ again:
 /* handles io from a tcp child process
  * params: tcp_c - pointer in the tcp_children array, to the entry for
  *                 which an io event was detected 
- *         fd_i  - fd index in the fd_array (usefull for optimizing
+ *         fd_i  - fd index in the fd_array (useful for optimizing
  *                 io_watch_deletes)
  * returns:  handle_* return convention: -1 on error, 0 on EAGAIN (no more
  *           io events queued), >0 on success. success/error refer only to
@@ -3699,7 +3781,7 @@ error:
  * 
  * params: p     - pointer in the ser processes array (pt[]), to the entry for
  *                 which an io event was detected
- *         fd_i  - fd index in the fd_array (usefull for optimizing
+ *         fd_i  - fd index in the fd_array (useful for optimizing
  *                 io_watch_deletes)
  * returns:  handle_* return convention:
  *          -1 on error reading from the fd,
@@ -4094,15 +4176,15 @@ inline static int send2child(struct tcp_connection* tcpconn)
 			}
 		}
 	}
-	
+
 	tcp_children[idx].busy++;
 	tcp_children[idx].n_reqs++;
 	if (unlikely(min_busy)){
 		LM_DBG("WARNING: no free tcp receiver, "
-				"connection passed to the least busy one (%d)\n",
-				min_busy);
+				"connection passed to the least busy one (idx:%d busy:%d)\n",
+				idx, min_busy);
 	}
-	LM_DBG("selected tcp worker %d %d(%ld) for activity on [%s], %p\n",
+	LM_DBG("selected tcp worker idx:%d proc:%d pid:%ld for activity on [%s], %p\n",
 			idx, tcp_children[idx].proc_no, (long)tcp_children[idx].pid,
 			(tcpconn->rcv.bind_address)?tcpconn->rcv.bind_address->sock_str.s:"",
 			tcpconn);
@@ -4116,7 +4198,7 @@ inline static int send2child(struct tcp_connection* tcpconn)
 	/* process tcp readers requests */
 	while(unlikely((tcpconn->state != S_CONN_BAD &&
 					(handle_tcp_child(&tcp_children[idx], -1)>0))));
-	
+
 	/* the above possible pending requests might have included a
 	   command to close this tcpconn (e.g. CONN_ERROR, CONN_EOF).
 	   In this case the fd is already closed here (and possible
@@ -4236,6 +4318,15 @@ static inline int handle_new_connect(struct socket_info* si)
 	/* add socket to list */
 	tcpconn=tcpconn_new(new_sock, &su, dst_su, si, si->proto, S_CONN_ACCEPT);
 	if (likely(tcpconn)){
+		if(tcp_accept_unique) {
+			if(tcpconn_exists(0, &tcpconn->rcv.dst_ip, tcpconn->rcv.dst_port,
+						&tcpconn->rcv.src_ip, tcpconn->rcv.src_port)) {
+				LM_ERR("duplicated connection by local and remote addresses\n");
+				_tcpconn_free(tcpconn);
+				tcp_safe_close(new_sock);
+				return 1; /* success, because the accept was succesfull */
+			}
+		}
 		tcpconn->flags|=F_CONN_PASSIVE;
 #ifdef TCP_PASS_NEW_CONNECTION_ON_DATA
 		atomic_set(&tcpconn->refcnt, 1); /* safe, not yet available to the

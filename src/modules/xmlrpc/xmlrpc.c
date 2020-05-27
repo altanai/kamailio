@@ -2343,7 +2343,7 @@ static int em_receive_request(sip_msg_t* orig_msg,
 	}else{
 		keng = sr_kemi_eng_get();
 		if(keng!=NULL) {
-			if(keng->froute(msg, EVENT_ROUTE,
+			if(sr_kemi_route(keng, msg, EVENT_ROUTE,
 						&xmlrpc_event_callback, &evrtname)<0) {
 				LM_ERR("error running event route kemi callback\n");
 			}
@@ -2509,7 +2509,7 @@ static int ki_xmlrpc_reply(sip_msg_t* msg, int rcode, str* reason)
 	reply.reason = as_asciiz(reason);
 	if (reply.reason == NULL) {
 		ERR("No memory left\n");
-		return -1;
+		goto error;
 	}
 
 	if (reply.code >= 300) {

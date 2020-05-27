@@ -46,9 +46,7 @@
 #include "../../core/data_lump.h"
 #include "../../core/data_lump_rpl.h"
 #include "../../core/usr_avp.h"
-#ifdef WITH_XAVP
 #include "../../core/usr_avp.h"
-#endif
 #include "../../core/atomic_ops.h" /* membar_write() */
 #include "../../core/compiler_opt.h"
 #ifdef USE_DST_BLACKLIST
@@ -59,7 +57,6 @@
 #include "../../core/cfg_core.h" /* cfg_get(core, core_cfg, use_dns_failover) */
 #endif
 
-#include "defs.h"
 #include "config.h"
 #include "h_table.h"
 #include "t_hooks.h"
@@ -99,9 +96,14 @@ static int goto_on_branch_failure=0;
 static int goto_on_reply=0;
 /* where to go on receipt of reply without transaction context */
 int goto_on_sl_reply=0;
+extern str on_sl_reply_name;
+
+extern str _tm_event_callback_lres_sent;
 
 /* remap 503 response code to 500 */
 extern int tm_remap_503_500;
+/* send path and flags in 3xx class reply */
+int tm_rich_redirect = 0;
 
 /* how to deal with winning branch reply selection in failure_route
  * can be overwritten per transaction with t_drop_replies(...)
@@ -353,17 +355,13 @@ static char *build_ack(struct sip_msg* rpl,struct cell *trans,int branch,
 		/* build the ACK from the INVITE which was sent out */
 		return build_local_reparse( trans, branch, ret_len,
 					ACK, ACK_LEN, &to
-	#ifdef CANCEL_REASON_SUPPORT
 					, 0
-	#endif /* CANCEL_REASON_SUPPORT */
 					);
 	} else {
 		/* build the ACK from the reveived INVITE */
 		return build_local( trans, branch, ret_len,
 					ACK, ACK_LEN, &to
-	#ifdef CANCEL_REASON_SUPPORT
 					, 0
-	#endif /* CANCEL_REASON_SUPPORT */
 					);
 	}
 }
@@ -381,7 +379,6 @@ static char *build_local_ack(struct sip_msg* rpl, struct cell *trans,
 								int branch, unsigned int *ret_len,
 								struct dest_info*  dst)
 {
-#ifdef WITH_AS_SUPPORT
 	struct retr_buf *local_ack, *old_lack;
 
 	/* do we have the ACK cache, previously build? */
@@ -419,10 +416,6 @@ static char *build_local_ack(struct sip_msg* rpl, struct cell *trans,
 	*ret_len = local_ack->buffer_len;
 	*dst = local_ack->dst;
 	return local_ack->buffer;
-#else /* ! WITH_AS_SUPPORT */
-	return build_dlg_ack(rpl, trans, branch, /*hdrs*/NULL, /*body*/NULL,
-			ret_len, dst);
-#endif /* WITH_AS_SUPPORT */
 }
 
 
@@ -450,6 +443,8 @@ inline static void start_final_repl_retr( struct cell *t )
 
 
 
+static int _tm_local_response_sent_lookup = 0;
+
 static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 				unsigned int code,
 				char *to_tag, unsigned int to_tag_len, int lock,
@@ -461,7 +456,10 @@ static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 	struct tmcb_params onsend_params;
 	int rt, backup_rt;
 	struct run_act_ctx ctx;
+	struct run_act_ctx *bctx;
 	struct sip_msg pmsg;
+	sr_kemi_eng_t *keng = NULL;
+	str evname = str_init("tm:local-response-sent");
 
 	init_cancel_info(&cancel_data);
 	if (!buf)
@@ -522,9 +520,7 @@ static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 		cleanup_uac_timers( trans );
 		if (is_invite(trans)){
 			prepare_to_cancel(trans, &cancel_data.cancel_bitmap, 0);
-#ifdef CANCEL_REASON_SUPPORT
 			cancel_data.reason.cause=code;
-#endif /* CANCEL_REASON_SUPPORT */
 			cancel_uacs( trans, &cancel_data, F_CANCEL_B_KILL );
 		}
 		start_final_repl_retr(  trans );
@@ -567,12 +563,20 @@ static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 						&onsend_params);
 			}
 
-			rt = route_lookup(&event_rt, "tm:local-response");
-			if (unlikely(rt >= 0 && event_rt.rlist[rt] != NULL))
-			{
+			if(_tm_event_callback_lres_sent.len>0
+					&& _tm_event_callback_lres_sent.s!=NULL) {
+				keng = sr_kemi_eng_get();
+			}
+			rt = -1;
+			if(likely(keng==NULL)) {
+				if(_tm_local_response_sent_lookup == 0) {
+					rt = route_lookup(&event_rt, "tm:local-response");
+					_tm_local_response_sent_lookup = 1;
+				}
+			}
+			if ((rt >= 0 && event_rt.rlist[rt] != NULL) || (keng != NULL)) {
 				if (likely(build_sip_msg_from_buf(&pmsg, buf, len,
-								inc_msg_no()) == 0))
-				{
+								inc_msg_no()) == 0)) {
 					struct onsend_info onsnd_info;
 
 					onsnd_info.to=&(trans->uas.response.dst.to);
@@ -584,11 +588,21 @@ static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 					backup_rt = get_route_type();
 					set_route_type(LOCAL_ROUTE);
 					init_run_actions_ctx(&ctx);
-					run_top_route(event_rt.rlist[rt], &pmsg, 0);
+					if(keng == NULL) {
+						run_top_route(event_rt.rlist[rt], &pmsg, 0);
+					} else {
+						bctx = sr_kemi_act_ctx_get();
+						sr_kemi_act_ctx_set(&ctx);
+						(void)sr_kemi_route(keng, &pmsg, EVENT_ROUTE,
+							&_tm_event_callback_lres_sent, &evname);
+						sr_kemi_act_ctx_set(bctx);
+					}
 					set_route_type(backup_rt);
 					p_onsend=0;
 
 					free_sip_msg(&pmsg);
+				} else {
+					LM_ERR("failed to build sip msg structure\n");
 				}
 			}
 
@@ -640,7 +654,7 @@ static int _reply( struct cell *trans, struct sip_msg* p_msg,
 
 	/* if that is a redirection message, dump current message set to it */
 	if (code>=300 && code<400) {
-		dset=print_dset(p_msg, &dset_len);
+		dset=print_dset(p_msg, &dset_len, tm_rich_redirect);
 		if (dset) {
 			add_lump_rpl(p_msg, dset, dset_len, LUMP_RPL_HDR);
 		}
@@ -669,16 +683,14 @@ typedef struct tm_faked_env {
 	int backup_route_type;
 	struct cell *backup_t;
 	int backup_branch;
-	unsigned int backup_msgid;
+	msg_ctx_id_t ctxid;
 	avp_list_t* backup_user_from;
 	avp_list_t* backup_user_to;
 	avp_list_t* backup_domain_from;
 	avp_list_t* backup_domain_to;
 	avp_list_t* backup_uri_from;
 	avp_list_t* backup_uri_to;
-#ifdef WITH_XAVP
 	sr_xavp_t **backup_xavps;
-#endif
 	struct socket_info* backup_si;
 	struct lump *backup_add_rm;
 	struct lump *backup_body_lumps;
@@ -735,9 +747,11 @@ int faked_env(struct cell *t, struct sip_msg *msg, int is_async_env)
 		/* backup */
 		_tm_faked_env[_tm_faked_env_idx].backup_t = get_t();
 		_tm_faked_env[_tm_faked_env_idx].backup_branch = get_t_branch();
-		_tm_faked_env[_tm_faked_env_idx].backup_msgid = global_msg_id;
+		_tm_faked_env[_tm_faked_env_idx].ctxid.msgid = tm_global_ctx_id.msgid;
+		_tm_faked_env[_tm_faked_env_idx].ctxid.pid = tm_global_ctx_id.pid;
 		/* fake transaction and message id */
-		global_msg_id = msg->id;
+		tm_global_ctx_id.msgid = msg->id;
+		tm_global_ctx_id.pid = msg->pid;
 
 		if (is_async_env) {
 			set_t(t, t->async_backup.backup_branch);
@@ -764,10 +778,8 @@ int faked_env(struct cell *t, struct sip_msg *msg, int is_async_env)
 		_tm_faked_env[_tm_faked_env_idx].backup_domain_to
 				= set_avp_list(AVP_TRACK_TO | AVP_CLASS_DOMAIN,
 					&t->domain_avps_to);
-#ifdef WITH_XAVP
 		_tm_faked_env[_tm_faked_env_idx].backup_xavps
 				= xavp_set_list(&t->xavps_list);
-#endif
 		/* set default send address to the saved value */
 		_tm_faked_env[_tm_faked_env_idx].backup_si = bind_address;
 		bind_address = t->uac[0].request.dst.send_sock;
@@ -786,7 +798,8 @@ int faked_env(struct cell *t, struct sip_msg *msg, int is_async_env)
 		/* restore original environment */
 		set_t(_tm_faked_env[_tm_faked_env_idx].backup_t,
 				_tm_faked_env[_tm_faked_env_idx].backup_branch);
-		global_msg_id = _tm_faked_env[_tm_faked_env_idx].backup_msgid;
+		tm_global_ctx_id.msgid = _tm_faked_env[_tm_faked_env_idx].ctxid.msgid;
+		tm_global_ctx_id.pid = _tm_faked_env[_tm_faked_env_idx].ctxid.pid;
 		set_route_type(_tm_faked_env[_tm_faked_env_idx].backup_route_type);
 		/* restore original avp list */
 		set_avp_list(AVP_TRACK_FROM | AVP_CLASS_USER,
@@ -801,9 +814,7 @@ int faked_env(struct cell *t, struct sip_msg *msg, int is_async_env)
 				_tm_faked_env[_tm_faked_env_idx].backup_uri_from);
 		set_avp_list(AVP_TRACK_TO | AVP_CLASS_URI,
 				_tm_faked_env[_tm_faked_env_idx].backup_uri_to);
-#ifdef WITH_XAVP
 		xavp_set_list(_tm_faked_env[_tm_faked_env_idx].backup_xavps);
-#endif
 		bind_address = _tm_faked_env[_tm_faked_env_idx].backup_si;
 		/* restore lump lists */
 		t->uas.request->add_rm
@@ -994,7 +1005,7 @@ int run_failure_handlers(struct cell *t, struct sip_msg *rpl,
 			/* run a failure_route action if some was marked */
 			keng = sr_kemi_eng_get();
 			if(unlikely(keng!=NULL)) {
-				if(keng->froute(faked_req, FAILURE_ROUTE,
+				if(sr_kemi_route(keng, faked_req, FAILURE_ROUTE,
 						sr_kemi_cbname_lookup_idx(on_failure), NULL)<0) {
 					LM_ERR("error running failure route kemi callback\n");
 				}
@@ -1068,7 +1079,7 @@ int run_branch_failure_handlers(struct cell *t, struct sip_msg *rpl,
 			/* run a branch_failure_route action if some was marked */
 			keng = sr_kemi_eng_get();
 			if(unlikely(keng!=NULL)) {
-				if(keng->froute(faked_req, BRANCH_FAILURE_ROUTE,
+				if(sr_kemi_route(keng, faked_req, BRANCH_FAILURE_ROUTE,
 						sr_kemi_cbname_lookup_idx(on_branch_failure), NULL)<0) {
 					LM_ERR("error running branch failure route kemi callback\n");
 				}
@@ -1260,7 +1271,7 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 	 * not relayed because it's not an INVITE transaction;
 	 * >= 300 are not relayed because 200 was already sent out
 	*/
-	LM_DBG("->>>>>>>>> T_code=%d, new_code=%d\n",Trans->uas.status,new_code);
+	LM_DBG("->>>>>>>>> T_code=%d, new_code=%d\n", Trans->uas.status,new_code);
 	inv_through=new_code>=200 && new_code<300 && is_invite(Trans);
 	/* if final response sent out, allow only INVITE 2xx  */
 	if ( Trans->uas.status >= 200 ) {
@@ -1270,6 +1281,8 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 			Trans->uac[branch].last_received=new_code;
 			*should_relay=branch;
 			return RPS_PUSHED_AFTER_COMPLETION;
+		} else {
+			LM_DBG("final reply already sent\n");
 		}
 		/* except the exception above, too late  messages will be discarded */
 		goto discard;
@@ -1322,8 +1335,8 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 			picked_branch = branch;
 			run_branch_failure_handlers( Trans, Trans->uac[branch].reply,
 									new_code, extra_flags);
-		 	/* Don't do reset the reply if we are in a resume route, 
-		  	 * we need to free it at the end of the continue processing */
+			/* Don't do reset the reply if we are in a resume route,
+			 * we need to free it at the end of the continue processing */
 			if (!(Trans->flags&T_ASYNC_CONTINUE))
 				Trans->uac[branch].reply = 0;
 		}
@@ -1340,11 +1353,10 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 					 * if the 6xx handling is not disabled */
 					prepare_to_cancel(Trans, &cancel_data->cancel_bitmap, 0);
 					Trans->flags|=T_6xx;
-#ifdef CANCEL_REASON_SUPPORT
 					cancel_data->reason.cause=new_code;
-#endif /* CANCEL_REASON_SUPPORT */
 				}
 			}
+			LM_DBG("store - other branches still active\n");
 			return RPS_STORE;
 		}
 		if (picked_branch==-1) {
@@ -1408,8 +1420,8 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 
 		/* now reset it; after the failure logic, the reply may
 		 * not be stored any more and we don't want to keep into
-		 * transaction some broken reference. Don't do it if we                     
-		 * are in a resume route, we need to free it at the end 
+		 * transaction some broken reference. Don't do it if we
+		 * are in a resume route, we need to free it at the end
 		 * of the continue processing */
 		if (!(Trans->flags&T_ASYNC_CONTINUE))
 			Trans->uac[branch].reply = 0;
@@ -1428,6 +1440,7 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 			 * put it on wait again; perhaps splitting put_on_wait
 			 * from send_reply or a new RPS_ code would be healthy
 			*/
+			LM_DBG("rps completed - uas status: %d\n", Trans->uas.status);
 			return RPS_COMPLETED;
 		}
 		/* look if the callback/failure_route introduced new branches ... */
@@ -1447,6 +1460,7 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 					if (new_branch==-2) { /* branches open yet */
 						*should_store=1;
 						*should_relay=-1;
+						LM_DBG("rps store - uas status: %d\n", Trans->uas.status);
 						return RPS_STORE;
 					}
 					/* error, use the old picked_branch */
@@ -1455,6 +1469,7 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 						/* we are not allowed to relay the reply */
 						*should_store=0;
 						*should_relay=-1;
+						LM_DBG("rps discarded - uas status: %d\n", Trans->uas.status);
 						return RPS_DISCARDED;
 					} else {
 						/* There are no open branches,
@@ -1482,39 +1497,40 @@ static enum rps t_should_relay_response( struct cell *Trans , int new_code,
 		/* we dont need 'prepare_to_cancel' here -- all branches
 		 * known to have completed */
 		/* prepare_to_cancel( Trans, cancel_bitmap, 0 ); */
+		LM_DBG("rps completed - uas status: %d branch: %d\n",
+				Trans->uas.status, picked_branch);
 		return RPS_COMPLETED;
 	}
 
 	/* not >=300 ... it must be 2xx or provisional 1xx */
 	if (new_code>=100) {
-#ifdef WITH_AS_SUPPORT
 			/* need a copy of the message for ACK generation */
 			*should_store = (inv_through && is_local(Trans) &&
 					(Trans->uac[branch].last_received < 200) &&
 					(Trans->flags & T_NO_AUTO_ACK)) ? 1 : 0;
-#else
-		*should_store=0;
-#endif
 		/* By default, 1xx and 2xx (except 100) will be relayed. 100 relaying can be
 		 * controlled via relay_100 parameter */
 		Trans->uac[branch].last_received=new_code;
 		*should_relay= (new_code==100 && !cfg_get(tm, tm_cfg, relay_100)) ? -1 : branch;
 		if (new_code>=200 ) {
 			prepare_to_cancel( Trans, &cancel_data->cancel_bitmap, 0);
-#ifdef CANCEL_REASON_SUPPORT
 			cancel_data->reason.cause=new_code;
-#endif /* CANCEL_REASON_SUPPORT */
+			LM_DBG("rps completed - uas status: %d\n", Trans->uas.status);
 			return RPS_COMPLETED;
-		} else return RPS_PROVISIONAL;
+		} else {
+			LM_DBG("rps provisional - uas status: %d\n", Trans->uas.status);
+			return RPS_PROVISIONAL;
+		}
 	}
 
 error:
 	/* reply_status didn't match -- it must be something weird */
-	LM_CRIT("error - oh my gooosh! We don't know whether to relay %d\n",
+	LM_CRIT("error - unable to decide whether to relay %d\n",
 		new_code);
 discard:
 	*should_store=0;
 	*should_relay=-1;
+	LM_DBG("finished with rps discarded - uas status: %d\n", Trans->uas.status);
 	return RPS_DISCARDED;
 
 branches_failed:
@@ -1531,6 +1547,7 @@ branches_failed:
 			LM_ERR("reply generation failed\n");
 		}
 	}
+	LM_DBG("finished with rps completed - uas status: %d\n", Trans->uas.status);
 	return RPS_COMPLETED;
 }
 
@@ -1803,8 +1820,8 @@ enum rps relay_reply( struct cell *t, struct sip_msg *p_msg, int branch,
 	/* *** store and relay message as needed *** */
 	reply_status = t_should_relay_response(t, msg_status, branch,
 		&save_clone, &relay, cancel_data, p_msg );
-	LM_DBG("branch=%d, save=%d, relay=%d icode=%d msg status=%u\n",
-		branch, save_clone, relay, t->uac[branch].icode, msg_status);
+	LM_DBG("reply status=%d branch=%d, save=%d, relay=%d icode=%d msg status=%u\n",
+		reply_status, branch, save_clone, relay, t->uac[branch].icode, msg_status);
 
 	/* store the message if needed */
 	if (save_clone) {
@@ -2170,7 +2187,6 @@ error:
  */
 int reply_received( struct sip_msg  *p_msg )
 {
-
 	int msg_status;
 	int last_uac_status;
 	char *ack;
@@ -2186,9 +2202,7 @@ int reply_received( struct sip_msg  *p_msg )
 	avp_list_t* backup_user_from, *backup_user_to;
 	avp_list_t* backup_domain_from, *backup_domain_to;
 	avp_list_t* backup_uri_from, *backup_uri_to;
-#ifdef WITH_XAVP
 	sr_xavp_t **backup_xavps;
-#endif
 	int replies_locked = 0;
 #ifdef USE_DNS_FAILOVER
 	int branch_ret;
@@ -2202,6 +2216,8 @@ int reply_received( struct sip_msg  *p_msg )
 	struct run_act_ctx ctx;
 	struct run_act_ctx *bctx;
 	sr_kemi_eng_t *keng = NULL;
+	int ret;
+	str evname = str_init("on_sl_reply");
 
 	/* make sure we know the associated transaction ... */
 	branch = T_BR_UNDEFINED;
@@ -2222,6 +2238,8 @@ int reply_received( struct sip_msg  *p_msg )
 
 	/* if transaction found, increment the rpl_received counter */
 	t_stats_rpl_received();
+
+	LM_DBG("transaction found - T:%p branch:%d\n", t, branch);
 
 	/* lock -- onreply_route, safe avp usage, ... */
 	/* - it is a recurrent mutex, so it is safe if a function executed
@@ -2282,14 +2300,6 @@ int reply_received( struct sip_msg  *p_msg )
 									t, &onsend_params);
 						}
 					}
-					if (unlikely(has_tran_tmcbs(t, TMCB_ACK_NEG_IN))){
-						INIT_TMCB_ONSEND_PARAMS(onsend_params,
-								t->uas.request, p_msg, &uac->request,
-								&uac->request.dst, ack, ack_len,
-								TMCB_LOCAL_F, branch, TYPE_LOCAL_ACK);
-						run_trans_callbacks_off_params(TMCB_ACK_NEG_IN,
-								t, &onsend_params);
-					}
 					shm_free(ack);
 				}
 			} else if (is_local(t) /*&& 200 <= msg_status < 300*/) {
@@ -2305,9 +2315,6 @@ int reply_received( struct sip_msg  *p_msg )
 							run_trans_callbacks_off_params(TMCB_REQUEST_SENT,
 									t, &onsend_params);
 					}
-#ifndef WITH_AS_SUPPORT
-					shm_free(ack);
-#endif
 				}
 			}
 		}
@@ -2332,7 +2339,6 @@ int reply_received( struct sip_msg  *p_msg )
 				 * if BUSY or set just exit, a cancel will be (or was) sent
 				 * shortly on this branch */
 				LM_DBG("branch CANCEL created\n");
-#ifdef CANCEL_REASON_SUPPORT
 				if (t->uas.cancel_reas) {
 					/* cancel reason was saved, use it */
 					cancel_branch(t, branch, t->uas.cancel_reas,
@@ -2347,9 +2353,6 @@ int reply_received( struct sip_msg  *p_msg )
 					cancel_branch(t, branch, &cancel_data.reason,
 														F_CANCEL_B_FORCE_C);
 				}
-#else /* CANCEL_REASON_SUPPORT */
-				cancel_branch(t, branch, F_CANCEL_B_FORCE_C);
-#endif /* CANCEL_REASON_SUPPORT */
 			}
 			goto done; /* nothing to do */
 		}
@@ -2388,9 +2391,7 @@ int reply_received( struct sip_msg  *p_msg )
 				&t->domain_avps_from );
 		backup_domain_to = set_avp_list(AVP_TRACK_TO | AVP_CLASS_DOMAIN,
 				&t->domain_avps_to );
-#ifdef WITH_XAVP
 		backup_xavps = xavp_set_list(&t->xavps_list);
-#endif
 		setbflagsval(0, uac->branch_flags);
 		if(msg_status>last_uac_status) {
 			/* current response (msg) status is higher that the last received
@@ -2408,8 +2409,10 @@ int reply_received( struct sip_msg  *p_msg )
 			bctx = sr_kemi_act_ctx_get();
 			init_run_actions_ctx(&ctx);
 			sr_kemi_act_ctx_set(&ctx);
-			keng->froute(p_msg, TM_ONREPLY_ROUTE,
-					sr_kemi_cbname_lookup_idx(onreply_route), NULL);
+			if(sr_kemi_route(keng, p_msg, TM_ONREPLY_ROUTE,
+						sr_kemi_cbname_lookup_idx(onreply_route), NULL)<0) {
+				LM_DBG("negative return from on-reply kemi callback\n");
+			}
 			sr_kemi_act_ctx_set(bctx);
 		} else {
 			run_top_route(onreply_rt.rlist[onreply_route], p_msg, &ctx);
@@ -2432,9 +2435,7 @@ int reply_received( struct sip_msg  *p_msg )
 		set_avp_list( AVP_TRACK_TO | AVP_CLASS_USER, backup_user_to );
 		set_avp_list( AVP_TRACK_FROM | AVP_CLASS_DOMAIN, backup_domain_from );
 		set_avp_list( AVP_TRACK_TO | AVP_CLASS_DOMAIN, backup_domain_to );
-#ifdef WITH_XAVP
 		xavp_set_list(backup_xavps);
-#endif
 		/* handle a possible DROP in the script, but only if this
 		 * is not a final reply (final replies already stop the timers
 		 * and droping them might leave a transaction living forever) */
@@ -2591,17 +2592,40 @@ done:
 
 trans_not_found:
 	/* transaction context was not found */
-	if (goto_on_sl_reply) {
-		/* The script writer has a chance to decide whether to
-		 * forward the reply or not.
-		 * Pre- and post-script callbacks have already
-		 * been execueted by the core. (Miklos)
-		 */
-		return run_top_route(onreply_rt.rlist[goto_on_sl_reply], p_msg, 0);
-	} else {
-		/* let the core forward the reply */
-		return 1;
+ 	if(on_sl_reply_name.s!=NULL && on_sl_reply_name.len>0) {
+		keng = sr_kemi_eng_get();
+		if(keng==NULL) {
+			if (goto_on_sl_reply) {
+				/* The script writer has a chance to decide whether to
+				 * forward the reply or not.
+				 * Pre- and post-script callbacks have already
+				 * been execueted by the core. (Miklos)
+			 */
+				return run_top_route(onreply_rt.rlist[goto_on_sl_reply], p_msg, 0);
+			} else {
+				/* let the core forward the reply */
+				return 1;
+			}
+		} else {
+			bctx = sr_kemi_act_ctx_get();
+			init_run_actions_ctx(&ctx);
+			sr_kemi_act_ctx_set(&ctx);
+			ret = sr_kemi_ctx_route(keng, &ctx, p_msg, EVENT_ROUTE,
+						&on_sl_reply_name, &evname);
+			sr_kemi_act_ctx_set(bctx);
+			if(ret<0) {
+				LM_ERR("error running on sl reply callback\n");
+				return -1;
+			}
+			if(unlikely(ctx.run_flags & DROP_R_F)) {
+				LM_DBG("drop flag set - skip forwarding the reply\n");
+				return 0;
+			}
+			/* let the core forward the reply */
+			return 1;
+		}
 	}
+	return 1;
 }
 
 

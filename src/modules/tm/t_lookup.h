@@ -23,8 +23,6 @@
 #ifndef _T_LOOKUP_H
 #define _T_LOOKUP_H
 
-#include "defs.h"
-
 
 #include "config.h"
 #include "t_funcs.h"
@@ -34,8 +32,7 @@
 
 #define T_BR_UNDEFINED (-1)
 
-extern unsigned int     global_msg_id;
-
+extern msg_ctx_id_t  tm_global_ctx_id;
 
 
 void init_t(void);
@@ -95,20 +92,19 @@ typedef int (*tset_fr_f)(struct sip_msg*, unsigned int, unsigned int);
 int t_is_local(struct sip_msg*);
 int t_get_trans_ident(struct sip_msg* p_msg, unsigned int* hash_index, unsigned int* label);
 int t_lookup_ident(struct cell** trans, unsigned int hash_index, unsigned int label);
+int t_lookup_ident_filter(struct cell ** trans, unsigned int hash_index,
+		unsigned int label, int filter);
 /* lookup a transaction by callid and cseq */
 int t_lookup_callid(struct cell** trans, str callid, str cseq);
 
 int t_set_fr(struct sip_msg* msg, unsigned int fr_inv_to, unsigned int fr_to );
 int t_reset_fr(void);
-#ifdef TM_DIFF_RT_TIMEOUT
 int t_set_retr(struct sip_msg* msg, unsigned int t1_to, unsigned int t2_to);
 int t_reset_retr(void);
-#endif
 int t_set_max_lifetime(struct sip_msg* msg, unsigned int eol_inv,
 											unsigned int eol_noninv);
 int t_reset_max_lifetime(void);
 
-#ifdef WITH_AS_SUPPORT
 /**
  * Returns the hash coordinates of the transaction current CANCEL is targeting.
  */
@@ -116,7 +112,6 @@ int t_get_canceled_ident(struct sip_msg *msg, unsigned int *hash_index,
 		unsigned int *label);
 typedef int (*t_get_canceled_ident_f)(struct sip_msg *msg, 
 		unsigned int *hash_index, unsigned int *label);
-#endif /* WITH_AS_SUPPORT */
 
 /**
  * required by TMX (K/O extensions)

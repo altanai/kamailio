@@ -2187,10 +2187,11 @@ after_update_via1:
 		new_buf=(char*)pkg_malloc(new_len+1);
 	if (new_buf==0){
 		ser_error=E_OUT_OF_MEM;
-		if(unlikely(mode&BUILD_IN_SHM))
-                        SHM_MEM_ERROR;
-                else
-                        PKG_MEM_ERROR;
+		if(unlikely(mode&BUILD_IN_SHM)) {
+			SHM_MEM_ERROR;
+		} else {
+			PKG_MEM_ERROR;
+		}
 		goto error00;
 	}
 
@@ -3194,6 +3195,7 @@ int build_sip_msg_from_buf(struct sip_msg *msg, char *buf, int len,
 
 	memset(msg, 0, sizeof(sip_msg_t));
 	msg->id = id;
+	msg->pid = my_pid();
 	msg->buf = buf;
 	msg->len = len;
 	if (parse_msg(buf, len, msg)!=0) {

@@ -182,6 +182,9 @@ int parse_contacts(str* _s, contact_t** _c)
 {
 	contact_t* c;
 	param_hooks_t hooks;
+	str sv;
+
+	sv = *_s;
 
 	while(1) {
 		/* Allocate and clear contact structure */
@@ -220,6 +223,10 @@ int parse_contacts(str* _s, contact_t** _c)
 		}
 
 		trim(&c->uri);
+		if((c->uri.len <= 0) || (c->uri.s + c->uri.len > sv.s + sv.len)) {
+			LM_ERR("invlid contact uri\n");
+			goto error;
+		}
 
 		if (_s->len == 0) goto ok;
 
@@ -244,6 +251,7 @@ int parse_contacts(str* _s, contact_t** _c)
 			c->methods = hooks.contact.methods;
 			c->instance = hooks.contact.instance;
 			c->reg_id = hooks.contact.reg_id;
+			c->flags = hooks.contact.flags;
 
 			if (_s->len == 0) goto ok;
 		}
@@ -264,6 +272,8 @@ int parse_contacts(str* _s, contact_t** _c)
 	}
 
 error:
+	LM_ERR("failure parsing '%.*s' (%d) [%p/%p/%d]\n", sv.len, sv.s, sv.len,
+			sv.s, _s->s, (int)(_s->s - sv.s));
 	if (c) pkg_free(c);
 	free_contacts(_c); /* Free any contacts created so far */
 	return -1;
@@ -314,6 +324,7 @@ void print_contacts(FILE* _o, contact_t* _c)
 		fprintf(_o, "methods : %p\n", ptr->methods);
 		fprintf(_o, "instance: %p\n", ptr->instance);
 		fprintf(_o, "reg-id  : %p\n", ptr->reg_id);
+		fprintf(_o, "flags   : %p\n", ptr->flags);
 		fprintf(_o, "len     : %d\n", ptr->len);
 		if (ptr->params) {
 			print_params(_o, ptr->params);

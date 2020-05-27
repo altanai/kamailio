@@ -1,6 +1,8 @@
 /*
+ * IMS IPSEC PCSCF module
  *
- * Copyright (C) 2001-2003 FhG Fokus
+ * Copyright (C) 2018 Tsvetomir Dimitrov
+ * Copyright (C) 2019 Aleksandar Yosifov
  *
  * This file is part of Kamailio, a free SIP server.
  *
@@ -20,19 +22,20 @@
  *
  */
 
-/*!
- * \file
- * \brief TM :: Definitions
- * \ingroup tm
- */
+#ifndef _SPI_GEN_H_
 
+#include <stdint.h>
 
-#ifndef _TM_DEFS_H
-#define _TM_DEFS_H
+//
+// PORT GEN is based on SPI list, because the logics of the SPI gen and PORT gen are basically the same.
+// It is used as an unique port generator for the TCP client and server ports.
 
-/* CANCEL_REASON_SUPPORT on by default */
-#ifndef NO_CANCEL_REASON_SUPPORT
-#define CANCEL_REASON_SUPPORT
-#endif /* NO_CANCEL_REASON_SUPPORT */
+int init_port_gen(uint32_t sport_start_val, uint32_t cport_start_val, uint32_t range);
+int clean_port_lists();
+int destroy_port_gen();
+uint32_t acquire_sport(); // acquare server port
+uint32_t acquire_cport(); // acquare client port
+int release_sport(uint32_t port); // release server port
+int release_cport(uint32_t port); // release client port
 
-#endif
+#endif /*  _SPI_GEN_H_ */

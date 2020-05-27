@@ -78,6 +78,7 @@ struct cfg_group_core default_core_cfg = {
 	10,  /*!< tls transport preference (for naptr) */
 	20,  /*!< sctp transport preference (for naptr) */
 	-1, /*!< dns_retr_time */
+	0,  /*!< dns_slow_query_ms */
 	-1, /*!< dns_retr_no */
 	-1, /*!< dns_servers_no */
 	1,  /*!< dns_search_list */
@@ -112,13 +113,14 @@ struct cfg_group_core default_core_cfg = {
 	3, /*!< mem_summary -flags: 0 off, 1 pkg_status, 2 shm_status,
 		4 pkg_sums, 8 shm_sums, 16 short_status */
 	1, /*!< mem_safety - 0 disabled; 1 enabled */
-	0, /*!< mem_join - 0 disabled */
+	1, /*!< mem_join - 1 enabled */
 	0, /*!< mem_status_mode - 0 only free fragments, 1 all fragements */
 	L_ERR, /*!< corelog */
 	L_DBG, /*!< latency cfg log */
 	L_ERR, /*!< latency log */
 	0, /*!< latency limit db */
 	0, /*!< latency limit action */
+	0, /*!< latency limit cfg */
 	2048,  /*!< pv_cache_limit */
 	0  /*!< pv_cache_action */
 };
@@ -224,6 +226,8 @@ cfg_def_t core_cfg_def[] = {
 		"sctp protocol preference when doing NAPTR lookups"},
 	{"dns_retr_time",	CFG_VAR_INT,	0, 0, 0, resolv_reinit,
 		"time in s before retrying a dns request"},
+	{"dns_slow_query_ms",	CFG_VAR_INT,	0, 0, 0, resolv_reinit,
+		"max time in ms before a dns request is considered slow"},
 	{"dns_retr_no",		CFG_VAR_INT,	0, 0, 0, resolv_reinit,
 		"number of dns retransmissions before giving up"},
 	{"dns_servers_no",	CFG_VAR_INT,	0, 0, 0, resolv_reinit,
@@ -324,6 +328,8 @@ cfg_def_t core_cfg_def[] = {
 		"limit in ms for alerting on time consuming db commands"},
 	{"latency_limit_action",		CFG_VAR_INT|CFG_ATOMIC,	0, 0, 0, 0,
 		"limit in ms for alerting on time consuming config actions"},
+	{"latency_limit_cfg",		CFG_VAR_INT|CFG_ATOMIC,	0, 0, 0, 0,
+		"limit in ms for alerting on time consuming config execution"},
 	{"pv_cache_limit",		CFG_VAR_INT|CFG_ATOMIC,	0, 0, 0, 0,
 		"limit to alert if too many vars in pv cache"},
 	{"pv_cache_action",		CFG_VAR_INT|CFG_ATOMIC,	0, 0, 0, 0,
