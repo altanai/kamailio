@@ -3274,7 +3274,7 @@ static int decode_mos_vals_dict(struct minmax_stats_vals *vals, bencode_item_t *
 static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item_t *dict,
 		struct sip_msg *msg)
 {
-	printf( "---------------------------- parse_call_stats_1 \n");
+	LM_DBG( "rtpengine: ---------------------------- parse_call_stats_1 \n");
 	long long created;
 	str label, check;
 	long long ssrcs[4];
@@ -3307,16 +3307,22 @@ static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item
 		LM_ERR("error printing label PV\n");
 		return;
 	}
+	LM_DBG( "rtpengine: ---------------------------- label %s ,  %s \n" , mmls->label_param , mmls->label_pv );
+
 	LM_DBG("rtpengine: looking for label '%.*s'\n", label.len, label.s);
 
 	/* walk through tags to find the label we're looking for */
 	tags = bencode_dictionary_get_expect(dict, "tags", BENCODE_DICTIONARY);
-	if (!tags)
-		return; /* label wanted but no tags found - return nothing */
-	LM_DBG("rtpengine: XXX got tags\n");
+	if (!tags){
+	    LM_DBG( "rtpengine: ---------------------------- label wanted but no tags found - return nothing \n ");
+	    return; /* label wanted but no tags found - return nothing */
+	}
+
+	LM_DBG("rtpengine: XXX got tags %s \n" , tags);
 
 	for (tag_key = tags->child; tag_key; tag_key = tag_key->sibling->sibling) {
-		LM_DBG("rtpengine: XXX got tag\n");
+		LM_DBG("rtpengine: XXX got tag %s \n" , tag_key );
+
 		tag_dict = tag_key->sibling;
 		/* compare label */
 		if (!bencode_dictionary_get_str(tag_dict, "label", &check))
@@ -3417,12 +3423,23 @@ static void parse_call_stats(bencode_item_t *dict, struct sip_msg *msg) {
 	if (!got_any_mos_pvs)
 		return;
 
-	parse_call_stats_1(&global_mos_stats, dict, msg);
-	parse_call_stats_1(&side_A_mos_stats, dict, msg);
-	parse_call_stats_1(&side_B_mos_stats, dict, msg);
+    LM_DBG( "rtpengine: ----------------------------  call parse_call_stats all \n ");
+
+    //	parse_call_stats_1(&global_mos_stats, dict, msg);
+
+    LM_DBG( "rtpengine: ----------------------------  call parse_call_stat for only A leg \n ");
+    //    LM_DBG( "rtpengine: ---------------------------- side_A_mos_stats label param  %s \n " , &side_A_mos_stats->label_param);
+    //    LM_DBG( "rtpengine: ---------------------------- label pv  %s \n " , &side_A_mos_stats->label_pv);
+    //    LM_DBG( "rtpengine: ---------------------------- dict %s \n " , dict);
+    //    LM_DBG( "rtpengine: ---------------------------- msg %s \n " , msg);
+
+    parse_call_stats_1(&side_A_mos_stats, dict, msg);
+
+    //	parse_call_stats_1(&side_B_mos_stats, dict, msg);
 }
 
 static int rtpengine_delete(struct sip_msg *msg, const char *flags) {
+    LM_DBG( "rtpengine: ------------- rtpengine_delete \n ");
 	bencode_buffer_t bencbuf;
 	bencode_item_t *ret = rtpp_function_call_ok(&bencbuf, msg, OP_DELETE, flags, NULL);
 	if (!ret)
@@ -3433,6 +3450,7 @@ static int rtpengine_delete(struct sip_msg *msg, const char *flags) {
 }
 
 static int rtpengine_query(struct sip_msg *msg, const char *flags) {
+    LM_DBG( "rtpengine: ------------- rtpengine_delete \n ");
 	bencode_buffer_t bencbuf;
 	bencode_item_t *ret = rtpp_function_call_ok(&bencbuf, msg, OP_QUERY, flags, NULL);
 	if (!ret)
@@ -4140,7 +4158,4 @@ static sr_kemi_t sr_kemi_rtpengine_exports[] = {
 };
 /* clang-format on */
 
-int mod_register(char *path, int *dlflags, void *p1, void *p2) {
-    sr_kemi_modules_add(sr_kemi_rtpengine_exports);
-    return 0;
-}
+int 
