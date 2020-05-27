@@ -1591,12 +1591,20 @@ mod_init(void)
 	if (pv_parse_var(&extra_id_pv_param, &extra_id_pv, NULL))
 		return -1;
 
-	if (mos_label_stats_parse(&global_mos_stats))
+	if (mos_label_stats_parse(&global_mos_stats)){
+		printf("-------------------------- mos_label_stats_parse \n ");
 		return -1;
-	if (mos_label_stats_parse(&side_A_mos_stats))
+	}
+
+	if (mos_label_stats_parse(&side_A_mos_stats)){
+		printf("-------------------------- mos_label_stats_parse A side not present \n");
 		return -1;
-	if (mos_label_stats_parse(&side_B_mos_stats))
+	}
+
+	if (mos_label_stats_parse(&side_B_mos_stats)){
+		printf( "-------------------------- mos_label_stats_parse B side not present \n");
 		return -1;
+	}
 
 	if (setid_avp_param) {
 		s.s = setid_avp_param; s.len = strlen(s.s);
@@ -3094,6 +3102,7 @@ static int decode_mos_vals_dict(struct minmax_stats_vals *vals, bencode_item_t *
 static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item_t *dict,
 		struct sip_msg *msg)
 {
+	printf( "---------------------------- parse_call_stats_1 \n");
 	long long created;
 	str label, check;
 	long long ssrcs[4];
