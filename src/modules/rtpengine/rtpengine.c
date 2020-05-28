@@ -3134,7 +3134,7 @@ static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item
 
 	LM_DBG("rtpengine: --------------- mmls->label_param '%s'\n", mmls->label_param);
 
-	LM_DBG("rtpengine: label pv '%.*s'\n", mmls->label_pv.len, mmls->label_pv.s);
+	LM_DBG("rtpengine: msg '%s'\n", msg);
 //	LM_DBG("rtpengine: --------------- mmls->average.mos_param  %.*s \n", mmls->average.mos_param);
 //	LM_DBG("rtpengine: --------------- mmls->roundtrip_param '%.*s'\n", mmls->average.roundtrip_param);
 //	LM_DBG("rtpengine: --------------- mmls->average.mos  %.*s \n", &mmls->average.mos_pv);
@@ -3168,7 +3168,7 @@ static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item
 		LM_DBG("rtpengine: XXX got label %.*s\n", check.len, check.s);
 //		if (str_cmp(&check, &label))
 //			continue;
-		LM_DBG("rtpengine: XXX label match %s \n" , str_cmp(&check, &label));
+		LM_DBG("rtpengine: XXX label match %s \n");
 
 		medias = bencode_dictionary_get_expect(tag_dict, "medias", BENCODE_LIST);
 		if (!medias)
