@@ -1591,12 +1591,18 @@ mod_init(void)
 	if (pv_parse_var(&extra_id_pv_param, &extra_id_pv, NULL))
 		return -1;
 
-	if (mos_label_stats_parse(&global_mos_stats))
+	if (mos_label_stats_parse(&global_mos_stats)) {
+		LM_DBG("--------------- mos_label_stats_parse overall \n ");
 		return -1;
-	if (mos_label_stats_parse(&side_A_mos_stats))
+	}
+	if (mos_label_stats_parse(&side_A_mos_stats)) {
+		LM_DBG("--------------- mos_label_stats_parse A \n ");
 		return -1;
-	if (mos_label_stats_parse(&side_B_mos_stats))
+	}
+	if (mos_label_stats_parse(&side_B_mos_stats)) {
+		LM_DBG("--------------- mos_label_stats_parse B \n ");
 		return -1;
+	}
 
 	if (setid_avp_param) {
 		s.s = setid_avp_param; s.len = strlen(s.s);
@@ -3115,35 +3121,55 @@ static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item
 				 average_vals = { .avg_samples = 0 },
 				 vals_decoded;
 
-	if (!mmls->got_any_pvs)
+	if (!mmls->got_any_pvs) {
 		return;
+	}
+	LM_DBG("rtpengine: --------------- mmls->got_any_pvs '%d'\n", mmls->got_any_pvs);
 
 	/* check if only a subset of info is requested */
-	if (!mmls->label_pv)
+	if (!mmls->label_pv) {
+		LM_DBG("rtpengine: not label pv present ----xxxxxxx 1 \n");
 		goto ssrcs_done;
+	}
+
+	LM_DBG("rtpengine: --------------- mmls->label_param '%s'\n", mmls->label_param);
+
+	LM_DBG("rtpengine: label pv '%.*s'\n", mmls->label_pv.len, mmls->label_pv.s);
+//	LM_DBG("rtpengine: --------------- mmls->average.mos_param  %.*s \n", mmls->average.mos_param);
+//	LM_DBG("rtpengine: --------------- mmls->roundtrip_param '%.*s'\n", mmls->average.roundtrip_param);
+//	LM_DBG("rtpengine: --------------- mmls->average.mos  %.*s \n", &mmls->average.mos_pv);
 
 	if (pv_printf_s(msg, mmls->label_pv, &label)) {
+		LM_DBG("rtpengine:cannot copy pointer from label pv to label  ----xxxxxxx 2 \n");
 		LM_ERR("error printing label PV\n");
 		return;
 	}
 	LM_DBG("rtpengine: looking for label '%.*s'\n", label.len, label.s);
 
 	/* walk through tags to find the label we're looking for */
+	LM_DBG("rtpengine: ------------ dict '%.*s' \n", dict);
 	tags = bencode_dictionary_get_expect(dict, "tags", BENCODE_DICTIONARY);
-	if (!tags)
+	if (!tags) {
+		LM_DBG("rtpengine: ------xxxxxxxxxx 3  label wanted but no tags found  \n ");
 		return; /* label wanted but no tags found - return nothing */
-	LM_DBG("rtpengine: XXX got tags\n");
+	}
+	LM_DBG("rtpengine: XXX got tags '%s' \n");
 
 	for (tag_key = tags->child; tag_key; tag_key = tag_key->sibling->sibling) {
+
+		LM_DBG("rtpengine: ---- tag_key %s \n" , tag_key->sibling);
 		LM_DBG("rtpengine: XXX got tag\n");
+
 		tag_dict = tag_key->sibling;
 		/* compare label */
 		if (!bencode_dictionary_get_str(tag_dict, "label", &check))
 			continue;
+
 		LM_DBG("rtpengine: XXX got label %.*s\n", check.len, check.s);
-		if (str_cmp(&check, &label))
-			continue;
-		LM_DBG("rtpengine: XXX label match\n");
+//		if (str_cmp(&check, &label))
+//			continue;
+		LM_DBG("rtpengine: XXX label match %s \n" , str_cmp(&check, &label));
+
 		medias = bencode_dictionary_get_expect(tag_dict, "medias", BENCODE_LIST);
 		if (!medias)
 			continue;
@@ -3175,8 +3201,10 @@ static void parse_call_stats_1(struct minmax_mos_label_stats *mmls, bencode_item
 		}
 	}
 	/* if we get here, we were looking for label. see if we found one. if not, return nothing */
-	if (num_ssrcs == 0)
+	if (num_ssrcs == 0) {
+		LM_DBG("rtpengine: ----- xxxxxxxx label not found %d \n " , num_ssrcs );
 		return;
+	}
 
 ssrcs_done:
 	/* now look for the stats values */
@@ -3236,9 +3264,9 @@ static void parse_call_stats(bencode_item_t *dict, struct sip_msg *msg) {
 	if (!got_any_mos_pvs)
 		return;
 
-	parse_call_stats_1(&global_mos_stats, dict, msg);
+//	parse_call_stats_1(&global_mos_stats, dict, msg);
 	parse_call_stats_1(&side_A_mos_stats, dict, msg);
-	parse_call_stats_1(&side_B_mos_stats, dict, msg);
+//	parse_call_stats_1(&side_B_mos_stats, dict, msg);
 }
 
 static int rtpengine_delete(struct sip_msg *msg, const char *flags) {
